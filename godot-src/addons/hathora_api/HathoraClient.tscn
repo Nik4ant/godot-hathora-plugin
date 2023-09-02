@@ -1,0 +1,9 @@
+[gd_scene load_steps=2 format=3 uid="uid://b4bjvobihj3tl"]
+
+[ext_resource type="Script" path="res://addons/hathora_api/HathoraClient.gd" id="1_hwygp"]
+
+[node name="HathoraClient" type="Node"]
+script = ExtResource("1_hwygp")
+
+[node name="http" type="HTTPRequest" parent="."]
+use_threads = true

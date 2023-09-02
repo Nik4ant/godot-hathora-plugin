@@ -1,0 +1,112 @@
+[gd_scene load_steps=16 format=3 uid="uid://cvy43v7y3y102"]
+
+[ext_resource type="StyleBox" uid="uid://dq3n74ddy018f" path="res://global/resources/ui/controls/AnimatedButton/normal.tres" id="1_h3odx"]
+[ext_resource type="StyleBox" uid="uid://bxix16fkhtyxg" path="res://global/resources/ui/controls/AnimatedButton/hover.tres" id="2_w3thd"]
+[ext_resource type="StyleBox" uid="uid://c0yrs1fr3rlaw" path="res://global/resources/ui/controls/AnimatedButton/pressed.tres" id="3_ubfrj"]
+[ext_resource type="StyleBox" uid="uid://bvcguo4u08tdq" path="res://global/resources/ui/controls/_common_assets/stylebox_empty.tres" id="4_v4pjr"]
+[ext_resource type="Script" path="res://global/resources/ui/controls/AnimatedButton/animated_button.gd" id="5_0hqgo"]
+[ext_resource type="Texture2D" uid="uid://bwtou208lr38t" path="res://global/resources/ui/controls/Button/btn_default.png" id="6_y6yqi"]
+[ext_resource type="Texture2D" uid="uid://c0ojsp0vtd36d" path="res://global/resources/ui/controls/Button/btn_hover_anim/btn_hover_4.png" id="7_fvmwc"]
+[ext_resource type="Texture2D" uid="uid://dm4vj63unu1ku" path="res://global/resources/ui/controls/Button/btn_hover_anim/btn_hover_3.png" id="8_a24fq"]
+[ext_resource type="Texture2D" uid="uid://u4r7rddn4oq" path="res://global/resources/ui/controls/Button/btn_hover_anim/btn_hover_2.png" id="9_or3v5"]
+[ext_resource type="Texture2D" uid="uid://ba3uwrjffe3ux" path="res://global/resources/ui/controls/Button/btn_hover_anim/btn_hover_1.png" id="10_kvch2"]
+[ext_resource type="AudioStream" uid="uid://dvpythqecf1dg" path="res://global/resources/ui/controls/AnimatedButton/button_pressed.wav" id="11_oy4sc"]
+
+[sub_resource type="Animation" id="Animation_2j8s1"]
+length = 0.001
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".:theme_override_styles/hover:texture")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [ExtResource("6_y6yqi")]
+}
+tracks/1/type = "value"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath(".:theme_override_styles/normal:texture")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [ExtResource("7_fvmwc")]
+}
+
+[sub_resource type="Animation" id="Animation_ko7or"]
+resource_name = "anti_hover"
+length = 0.6
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".:theme_override_styles/normal:texture")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.2, 0.4, 0.6),
+"transitions": PackedFloat32Array(1, 1, 1, 1),
+"update": 1,
+"values": [ExtResource("7_fvmwc"), ExtResource("8_a24fq"), ExtResource("9_or3v5"), ExtResource("10_kvch2")]
+}
+
+[sub_resource type="Animation" id="Animation_jy63u"]
+resource_name = "hover"
+length = 0.6
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".:theme_override_styles/hover:texture")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.2, 0.4, 0.6),
+"transitions": PackedFloat32Array(1, 1, 1, 1),
+"update": 1,
+"values": [ExtResource("6_y6yqi"), ExtResource("9_or3v5"), ExtResource("8_a24fq"), ExtResource("7_fvmwc")]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_ldjog"]
+_data = {
+"RESET": SubResource("Animation_2j8s1"),
+"anti_hover": SubResource("Animation_ko7or"),
+"hover": SubResource("Animation_jy63u")
+}
+
+[node name="animatable_button" type="Button"]
+offset_right = 64.0
+offset_bottom = 30.0
+size_flags_horizontal = 4
+size_flags_vertical = 4
+theme_override_colors/font_color = Color(0.913725, 0.913725, 0.913725, 1)
+theme_override_colors/font_pressed_color = Color(1, 1, 1, 1)
+theme_override_colors/font_hover_color = Color(0.941176, 0.941176, 0.941176, 1)
+theme_override_colors/font_focus_color = Color(1, 1, 1, 1)
+theme_override_colors/font_hover_pressed_color = Color(0.9375, 0.9375, 0.9375, 1)
+theme_override_colors/font_disabled_color = Color(0.910156, 0.910156, 0.910156, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 2
+theme_override_styles/normal = ExtResource("1_h3odx")
+theme_override_styles/hover = ExtResource("2_w3thd")
+theme_override_styles/pressed = ExtResource("3_ubfrj")
+theme_override_styles/focus = ExtResource("4_v4pjr")
+script = ExtResource("5_0hqgo")
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+speed_scale = 2.0
+audio_max_polyphony = 1
+libraries = {
+"": SubResource("AnimationLibrary_ldjog")
+}
+
+[node name="sfx_press" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("11_oy4sc")
+bus = &"sfx"
+
+[connection signal="mouse_entered" from="." to="." method="_on_mouse_entered"]
+[connection signal="mouse_exited" from="." to="." method="_on_mouse_exited"]

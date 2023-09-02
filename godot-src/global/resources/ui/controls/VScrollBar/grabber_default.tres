@@ -1,0 +1,10 @@
+[gd_resource type="StyleBoxTexture" load_steps=2 format=3 uid="uid://b07kjjqx7ksq6"]
+
+[ext_resource type="Texture2D" uid="uid://bgpx8jlqj22p6" path="res://global/resources/ui/controls/VScrollBar/vscroll_grabber.png" id="1_m6ekp"]
+
+[resource]
+texture = ExtResource("1_m6ekp")
+texture_margin_left = 4.0
+texture_margin_top = 6.0
+texture_margin_right = 3.0
+texture_margin_bottom = 6.0
