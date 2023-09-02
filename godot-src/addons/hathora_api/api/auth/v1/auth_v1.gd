@@ -2,6 +2,7 @@
 const HathoraError = preload("res://addons/hathora_api/core/error.gd").HathoraError
 const ResponseJson = preload("res://addons/hathora_api/core/http.gd").ResponseJson
 
+##region     -- login_anonymous
 class LoginAnonymousResponse:
 	var auth_token: String = ''
 	
@@ -36,3 +37,4 @@ static func login_anonymous() -> LoginAnonymousResponse:
 			)
 	
 	return login_response
+##endregion  -- login_anonymous

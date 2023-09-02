@@ -1,10 +1,10 @@
 [gd_resource type="StyleBoxTexture" load_steps=2 format=3 uid="uid://dq0gtcgotrldj"]
 
-[sub_resource type="CompressedTexture2D" id="CompressedTexture2D_mwu7o"]
+[ext_resource type="Texture2D" uid="uid://csii1sw6arxps" path="res://global/resources/ui/controls/PopupMenu/panel.png" id="1_nxqxt"]
 
 [resource]
 content_margin_left = 12.0
-texture = SubResource("CompressedTexture2D_mwu7o")
+texture = ExtResource("1_nxqxt")
 texture_margin_left = 48.0
 texture_margin_top = 16.0
 texture_margin_right = 48.0

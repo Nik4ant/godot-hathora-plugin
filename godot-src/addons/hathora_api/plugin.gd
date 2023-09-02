@@ -1,18 +1,18 @@
 @tool
 extends EditorPlugin
 
-const AUTOLOAD_CLIENT_NAME: String = "HathoraClient"
-const AUTOLOAD_CLIENT_PATH: String = "res://addons/hathora_api/HathoraClient.tscn"
 
-const AUTOLOAD_CONSTANTS_NAME: String = "HathoraConstants"
-const AUTOLOAD_CONSTANTS_PATH: String = "res://addons/hathora_api/HathoraConstants.gd"
+const AUTOLOADS: Array = [
+	["HathoraClient", "res://addons/hathora_api/HathoraClient.tscn"],
+	["HathoraConstants", "res://addons/hathora_api/HathoraConstants.gd"],
+]
 
 
 func _enter_tree() -> void:
-	add_autoload_singleton(AUTOLOAD_CLIENT_NAME, AUTOLOAD_CLIENT_PATH)
-	add_autoload_singleton(AUTOLOAD_CONSTANTS_NAME, AUTOLOAD_CONSTANTS_PATH)
+	for autoload in AUTOLOADS:
+		add_autoload_singleton(autoload[0], autoload[1])
 
 
 func _exit_tree() -> void:
-	remove_autoload_singleton(AUTOLOAD_CLIENT_NAME)
-	remove_autoload_singleton(AUTOLOAD_CONSTANTS_NAME)
+	for autoload in AUTOLOADS:
+		remove_autoload_singleton(autoload[0])

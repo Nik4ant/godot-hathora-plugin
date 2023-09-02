@@ -3,7 +3,6 @@ const HathoraError = preload("res://addons/hathora_api/core/error.gd").HathoraEr
 const ResponseJson = preload("res://addons/hathora_api/core/http.gd").ResponseJson
 
 class CreateLobbyResponse:
-	var state: Dictionary
 	var initial_config: Dictionary
 	var created_at_unix: int
 	var created_by: String
@@ -16,7 +15,6 @@ class CreateLobbyResponse:
 	var error_message: String = ''
 
 
-# REMINDER: Ask devs why lobby/create doesn't have initialState (similar to initialConfig)
 static func create(auth_token: String, visibility: String, region: String, initial_config: Dictionary = {}, room_id: String = '') -> CreateLobbyResponse:
 	assert(HathoraClient.APP_ID != '', "ASSERT! HathoraCLient MUST have a valid APP_ID. See init() function")
 	# Params validation
@@ -41,8 +39,6 @@ static func create(auth_token: String, visibility: String, region: String, initi
 	# TODO: replace that with a for loop OR generate automatically
 	if api_response.status_code == 201:
 		create_response.status = HathoraError.Ok
-		#assert(api_response.data.has("state"), "ASSERT! Missing parameter \"state\" during json parsing in lobby creation")
-		#create_response.state = api_response.data["state"]
 		
 		assert(api_response.data.has("initialConfig"), "ASSERT! Missing parameter \"initialConfig\" during json parsing in lobby creation")
 		create_response.initial_config = api_response.data["initialConfig"]
