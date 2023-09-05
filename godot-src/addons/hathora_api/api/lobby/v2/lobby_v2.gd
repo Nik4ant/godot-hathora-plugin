@@ -2,6 +2,7 @@
 const HathoraError = preload("res://addons/hathora_api/core/error.gd").HathoraError
 const ResponseJson = preload("res://addons/hathora_api/core/http.gd").ResponseJson
 
+##region       -- create_lobby
 class CreateLobbyResponse:
 	var initial_config: Dictionary
 	var created_at_unix: int
@@ -11,9 +12,8 @@ class CreateLobbyResponse:
 	var room_id: String
 	var app_id: String
 	
-	var status: HathoraError
+	var error: HathoraError
 	var error_message: String = ''
-
 
 static func create(auth_token: String, visibility: String, region: String, initial_config: Dictionary = {}, room_id: String = '') -> CreateLobbyResponse:
 	assert(HathoraClient.APP_ID != '', "ASSERT! HathoraCLient MUST have a valid APP_ID. See init() function")
@@ -36,9 +36,8 @@ static func create(auth_token: String, visibility: String, region: String, initi
 		}
 	)
 	# On success
-	# TODO: replace that with a for loop OR generate automatically
 	if api_response.status_code == 201:
-		create_response.status = HathoraError.Ok
+		create_response.error = HathoraError.Ok
 		
 		assert(api_response.data.has("initialConfig"), "ASSERT! Missing parameter \"initialConfig\" during json parsing in lobby creation")
 		create_response.initial_config = api_response.data["initialConfig"]
@@ -65,40 +64,41 @@ static func create(auth_token: String, visibility: String, region: String, initi
 	# Handle errors
 	match api_response.status_code:
 		400:
-			create_response.status = HathoraError.BadRequest
+			create_response.error = HathoraError.BadRequest
 			create_response.error_message = str(
 				"Something is wrong with your request to `", url,
 				"` Message: `", api_response.error_message,
 				"` Response data: ", api_response.data
 			)
 		401:
-			create_response.status = HathoraError.Unauthorized
+			create_response.error = HathoraError.Unauthorized
 			create_response.error_message = str(
 				"Can't create lobby because auth token is invalid"
 			)
 		404:
-			create_response.status = HathoraError.ApiDontExists
+			create_response.error = HathoraError.ApiDontExists
 			create_response.error_message = str(
-				"Can't create lobby because api endpoint for url `", url, "` doesn't exist"
+				"Can't create lobby because api endpoint for url `", url, "` doesn't exist; Message: `",
+				api_response.error_message, '`'
 			)
 		422:
-			create_response.status = HathoraError.ServerCantProcess
+			create_response.error = HathoraError.ServerCantProcess
 			create_response.error_message = str(
 				"Server can't process data given to it. Message: `", api_response.error_message,
 				"`. Response data: ", api_response.data
 			)
 		429:
-			create_response.status = HathoraError.TooManyRequests
+			create_response.error = HathoraError.TooManyRequests
 			create_response.error_message = str(
 				"User with token `", auth_token, "` exited lobby creation limit. Try again later"
 			)
 		500:
-			create_response.status = HathoraError.ServerError
+			create_response.error = HathoraError.ServerError
 			create_response.error_message = str(
 				"Hathora servers don't respond: `", api_response.error_message, '`'
 			)
 		_:
-			create_response.status = HathoraError.Unknown
+			create_response.error = HathoraError.Unknown
 			create_response.error_message = str(
 				"Unknown error occured during lobby creation: `",
 				api_response.error_message, "`; http status code: ",
@@ -107,3 +107,4 @@ static func create(auth_token: String, visibility: String, region: String, initi
 	
 	push_error(create_response.error_message)
 	return create_response
+#endregion     -- create_lobby

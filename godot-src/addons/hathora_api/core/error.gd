@@ -20,7 +20,8 @@ enum HathoraError {
 	#endregion  -- API errors
 	
 	#region     -- Internal errors 
-	HttpError,
+	## Client can't perform a HTTP request for [whatever] reason
+	InternalHttpError,
 	JsonError,
 	# ...
 	#endregion  -- Internal errors  

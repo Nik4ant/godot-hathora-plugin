@@ -6,4 +6,3 @@
 script = ExtResource("1_hwygp")
 
 [node name="http" type="HTTPRequest" parent="."]
-use_threads = true

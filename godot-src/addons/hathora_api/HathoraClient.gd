@@ -31,7 +31,7 @@ func init(app_id: String, is_client: bool = true, dev_token: String = '') -> voi
 
 ##region     -- Endpoints
 const App = preload("res://addons/hathora_api/api/app/app.gd")
-const Auth := preload("res://addons/hathora_api/api/auth/auth.gd")
+const Auth = preload("res://addons/hathora_api/api/auth/auth.gd")
 const Billing = preload("res://addons/hathora_api/api/billing/billing.gd")
 const Build = preload("res://addons/hathora_api/api/build/build.gd")
 const Deployment = preload("res://addons/hathora_api/api/deployment/deployment.gd")
