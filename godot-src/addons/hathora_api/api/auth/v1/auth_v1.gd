@@ -10,60 +10,136 @@ class LoginAnonymousResponse:
 	var error_message: String
 
 
-#static func login_anonymous() -> LoginAnonymousResponse:
-#	assert(HathoraClient.APP_ID != '', "ASSERT! HathoraCLient MUST have a valid APP_ID. See init() function")
-#	var login_response: LoginAnonymousResponse = LoginAnonymousResponse.new()
-#	# Api call
-#	var url: String = str("https://api.hathora.dev/auth/v1/", HathoraClient.APP_ID, "/login/anonymous")
-#	var api_response: ResponseJson = await Http.POST(
-#		url, ["Content-Type: application/json"], {}
-#	)
-#	# Handle response
-#	match api_response.status_code:
-#		200:
-#			assert(api_response.data.has("token"), "ASSERT! Missing parameter \"token\" during json parsing in anonymous auth")
-#			login_response.auth_token = api_response.data["token"]
-#		404:
-#			login_response.error = HathoraError.ApiDontExists
-#			login_response.error_message = str(
-#				"Can't auth user anonymously because api endpoint `", url, "` doesn't exist"
-#			)
-#		_:
-#			login_response.error = HathoraError.Unknown
-#			login_response.error_message = str(
-#				"Unknown error occured during anonymous auth: `",
-#				api_response.error_message, "`; http status code: ",
-#				api_response.status_code, "; data: ", api_response.data
-#			)
-#
-#	return login_response
-
-
 static func login_anonymous_async() -> LoginAnonymousResponse:
-	assert(HathoraClient.APP_ID != '', "ASSERT! HathoraCLient MUST have a valid APP_ID. See init() function")
 	var result: LoginAnonymousResponse = LoginAnonymousResponse.new()
-	# Api call
-	var url: String = str("https://api.hathora.dev/auth/v1/", HathoraClient.APP_ID, "/login/anonymous")
-	var api_response: ResponseJson = await Http.POST(
-		url, ["Content-Type: application/json"], {}
-	)
-	# Api errors
-	result.error = api_response.error
-	result.error_message = api_response.error_message
-	if result.error == HathoraError.Unknown:
-		# Handle errors that could be missed by Http module
-		pass
-	else:
-		assert(api_response.data.has("token"), "ASSERT! Missing parameter \"token\" during json parsing in anonymous auth")
-		result.auth_token = api_response.data["token"]
+	HathoraEventBus.on_login_anonymous.connect(
+		func(response: LoginAnonymousResponse) -> void:
+			result.auth_token = response.auth_token
+			result.error = response.error
+			result.error_message = response.error_message
+	, CONNECT_ONE_SHOT)
 	
+	login_anonymous_sync()
+	await HathoraEventBus.on_login_anonymous
 	return result
 
 
-# TODO: add event bus thingy?
-#signal on_login_anonymous_sync(response: LoginAnonymousResponse)
-#static func login_anonymous_sync() -> void:
-#	var result: LoginAnonymousResponse = LoginAnonymousResponse.new()
-#	on_login_anonymous_sync.emit(result)
-
+static func login_anonymous_sync() -> void:
+	var result: LoginAnonymousResponse = LoginAnonymousResponse.new()
+	# Api call
+	var url: String = str("https://api.hathora.dev/auth/v1/", HathoraClient.APP_ID, "/login/anonymous")
+	var api_response: ResponseJson = Http.post_sync(
+		url, ["Content-Type: application/json"], {}
+	)
+	api_response.request_completed.connect(
+		func() -> void:
+			# Api errors
+			result.error = api_response.error
+			result.error_message = api_response.error_message
+			if result.error != HathoraError.Ok:
+				# Handle errors that could be missed by Http module
+				pass
+			else:
+				assert(api_response.data.has("token"), "ASSERT! Missing parameter \"token\" during json parsing in anonymous auth")
+				result.auth_token = api_response.data["token"]
+			
+			HathoraEventBus.on_login_anonymous.emit(result)
+	, CONNECT_ONE_SHOT)
 ##endregion  -- login_anonymous
+
+
+##region     -- login_nickname
+class LoginNicknameResponse:
+	var auth_token: String
+	
+	var error: HathoraError
+	var error_message: String
+
+
+static func login_nickname_async(nickname: String) -> LoginNicknameResponse:
+	var result: LoginNicknameResponse = LoginNicknameResponse.new()
+	HathoraEventBus.on_login_anonymous.connect(
+		func(response: LoginNicknameResponse) -> void:
+			result.auth_token = response.auth_token
+			result.error = response.error
+			result.error_message = response.error_message
+	, CONNECT_ONE_SHOT)
+	
+	login_nickname_sync(nickname)
+	await HathoraEventBus.on_login_nickname
+	return result
+
+
+static func login_nickname_sync(nickname: String) -> void:
+	var result: LoginNicknameResponse = LoginNicknameResponse.new()
+	# Api call
+	var url: String = str("https://api.hathora.dev/auth/v1/", HathoraClient.APP_ID, "/login/nickname")
+	var api_response: ResponseJson = Http.post_sync(
+		url, ["Content-Type: application/json"], {
+			"nickname": nickname
+		}
+	)
+	api_response.request_completed.connect(
+		func() -> void:
+			# Api errors
+			result.error = api_response.error
+			result.error_message = api_response.error_message
+			if result.error != HathoraError.Ok:
+				# Handle errors that could be missed by Http module
+				pass
+			else:
+				assert(api_response.data.has("token"), "ASSERT! Missing parameter \"token\" during json parsing in anonymous auth")
+				result.auth_token = api_response.data["token"]
+			
+			HathoraEventBus.on_login_nickname.emit(result)
+	, CONNECT_ONE_SHOT)
+##endregion  -- login_nickname
+
+##region     -- login_google
+class LoginGoogleResponse:
+	var auth_token: String
+	
+	var error: HathoraError
+	var error_message: String
+
+
+static func login_google_async(id_token: String) -> LoginGoogleResponse:
+	var result: LoginGoogleResponse = LoginGoogleResponse.new()
+	HathoraEventBus.on_login_google.connect(
+		func(response: LoginGoogleResponse) -> void:
+			result.auth_token = response.auth_token
+			result.error = response.error
+			result.error_message = response.error_message
+	, CONNECT_ONE_SHOT)
+	
+	login_google_sync(id_token)
+	await HathoraEventBus.on_login_google
+	return result
+
+
+static func login_google_sync(id_token: String) -> void:
+	var result: LoginGoogleResponse = LoginGoogleResponse.new()
+	# Api call
+	var url: String = str("https://api.hathora.dev/auth/v1/", HathoraClient.APP_ID, "/login/google")
+	var api_response: ResponseJson = Http.post_sync(
+		url, ["Content-Type: application/json"], {
+			"idToken": id_token
+		}
+	)
+	api_response.request_completed.connect(
+		func() -> void:
+			# Api errors
+			result.error = api_response.error
+			result.error_message = api_response.error_message
+			if result.error != HathoraError.Ok:
+				# Handle errors that could be missed by Http module
+				if api_response.status_code == 401:
+					result.error = HathoraError.Unauthorized
+					result.error_message = "TODO: SPECIFY ERROR MESSAGE"
+			else:
+				assert(api_response.data.has("token"), "ASSERT! Missing parameter \"token\" during json parsing in anonymous auth")
+				result.auth_token = api_response.data["token"]
+			
+			HathoraEventBus.on_login_google.emit(result)
+	, CONNECT_ONE_SHOT)
+##endregion  -- login_google

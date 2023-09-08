@@ -12,31 +12,42 @@ func _ready() -> void:
 
 func _on_btn_create_lobby():
 	# Get auth token
-	var login_response = await HathoraClient.Auth.V1.login_anonymous()
-	if login_response.error != OK:
-		print("Login error: ", login_response.error_message)
+	var login_response_async = await HathoraClient.Auth.V1.login_anonymous_async()
+	if login_response_async.error != OK:
+		print("Login error: ", login_response_async.error_message)
 		return
-	print("Auth token: ", login_response.auth_token)
+	print("Auth token async: ", login_response_async.auth_token)
 	
+	# OR
+	
+	HathoraEventBus.on_login_anonymous.connect(
+		func(login_response_sync) -> void:
+			if login_response_sync.error != OK:
+				print("Login error: ", login_response_sync.error_message)
+			print("Auth token sync: ", login_response_sync.auth_token)
+	, CONNECT_ONE_SHOT)
+	HathoraClient.Auth.V1.login_anonymous_sync()
+	
+	return
 	# Create lobby
-	var region: String = option_regions.get_item_text(option_regions.selected)
-	var create_response = await HathoraClient.Lobby.V2.create(
-		login_response.auth_token, "public", region
-	)
-	if create_response.error != OK:
-		print("Create lobby error: ", create_response.error_message)
-		return
-	print("Room id: ", create_response.room_id)
+#	var region: String = option_regions.get_item_text(option_regions.selected)
+#	var create_response = await HathoraClient.Lobby.V2.create(
+#		login_response.auth_token, "public", region
+#	)
+#	if create_response.error != OK:
+#		print("Create lobby error: ", create_response.error_message)
+#		return
+#	print("Room id: ", create_response.room_id)
 	
 	# Get connection details
-	var connection := await HathoraClient.Room.V2.get_connection_info(
-		create_response.room_id
-	)
-	
-	if connection.error != OK:
-		print(": ", create_response.error_message)
-		return
-	print(connection.exposed_port.host, ':', connection.exposed_port.port)
+#	var connection := await HathoraClient.Room.V2.get_connection_info(
+#		create_response.room_id
+#	)
+#
+#	if connection.error != OK:
+#		print(": ", create_response.error_message)
+#		return
+#	print(connection.exposed_port.host, ':', connection.exposed_port.port)
 
 
 func example_async():

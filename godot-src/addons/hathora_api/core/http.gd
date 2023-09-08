@@ -17,12 +17,26 @@ class ResponseJson:
 	var error: HathoraError
 	## Used to wait for SPECIFIC http response
 	## rather than waiting for ANY (random) http response
-	## (Helpful for making multiple requests at once)
-	signal _request_completed
+	## (Might be helpful for making multiple requests at once)
+	signal request_completed
 
 
-#region     -- GET/POST/DELETE
-static func GET(url: String, headers: Array[String]) -> ResponseJson:
+#region     -- GET/POST async
+static func get_async(url: String, headers: Array[String]) -> ResponseJson:
+	var result: ResponseJson = get_sync(url, headers)
+	await result.request_completed
+	return result
+
+
+static func post_async(url: String, headers: Array[String], body: Dictionary) -> ResponseJson:
+	var result: ResponseJson = post_sync(url, headers, body)
+	await result.request_completed
+	return result
+#endregion  -- GET/POST async
+
+
+#region     -- GET/POST sync
+static func get_sync(url: String, headers: Array[String]) -> ResponseJson:
 	assert(is_instance_valid(http_node), "ASSERT! Can't perform GET request without HTTPRequest node being passed to init() function")
 	
 	var response: ResponseJson = ResponseJson.new()
@@ -42,7 +56,7 @@ static func GET(url: String, headers: Array[String]) -> ResponseJson:
 				response.error_message = "Can't parse response"
 			response.data = json_parse_or(raw_string, {})
 			_map_error_to(response, response_code, url)
-			response._request_completed.emit()
+			response.request_completed.emit()
 	
 	, CONNECT_ONE_SHOT | CONNECT_DEFERRED | CONNECT_REFERENCE_COUNTED)
 	# Do the actual request
@@ -57,15 +71,13 @@ static func GET(url: String, headers: Array[String]) -> ResponseJson:
 		push_error(response.error_message)
 		return response
 	
-	await response._request_completed
 	return response
 
 
-static func POST(url: String, headers: Array[String], body: Dictionary) -> ResponseJson:
+static func post_sync(url: String, headers: Array[String], body: Dictionary) -> ResponseJson:
 	assert(is_instance_valid(http_node), "ASSERT! Can't perform GET request without HTTPRequest node being passed to init() function")
 	
 	var response: ResponseJson = ResponseJson.new()
-	# Handle response
 	http_node.request_completed.connect(
 		func(result: int, response_code: int, _headers: PackedStringArray, body: PackedByteArray) -> void:
 			response.status_code = response_code
@@ -82,27 +94,27 @@ static func POST(url: String, headers: Array[String], body: Dictionary) -> Respo
 				response.error_message = "Can't parse response"
 			response.data = json_parse_or(raw_string, {})
 			_map_error_to(response, response_code, url)
-			response._request_completed.emit()
+			response.request_completed.emit()
 	
-	, CONNECT_ONE_SHOT | CONNECT_DEFERRED | CONNECT_REFERENCE_COUNTED)
+	, CONNECT_ONE_SHOT)
 	# Do the actual request
 	var request_error: Error = http_node.request(
-		url, headers,
+		url, headers, 
 		HTTPClient.METHOD_POST, JSON.stringify(body)
 	)
 	if request_error != OK:
 		response.data = {}
 		response.error = HathoraError.InternalHttpError
 		response.error_message = str(
-			"Error while doing POST request to `", url, 
+			"Error while doing GET request to `", url, 
 			"`; Message: `", error_string(request_error), '`'
 		)
 		push_error(response.error_message)
 		return response
 	
-	await response._request_completed
 	return response
-#endregion  -- GET/POST/DELETE
+#endregion  -- GET/POST sync
+
 
 ## To-DO: explain. 
 ## TL;DR checks the most common errors and maps them to response object
@@ -115,9 +127,11 @@ static func _map_error_to(response: ResponseJson, status_code: int, url: String)
 				response.error_message = str(
 					"Api endpoint `", url, "` doesn't exist"
 				)
+				push_error(response.error_message)
 			500:
 				response.error = HathoraError.ServerError
 				response.error_message = "Hathora servers don't respond"
+				push_error(response.error_message)
 			_:
 				response.error = HathoraError.Unknown
 				response.error_message = str(

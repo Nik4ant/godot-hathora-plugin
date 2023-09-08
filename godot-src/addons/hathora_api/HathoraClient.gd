@@ -30,16 +30,16 @@ func init(app_id: String, is_client: bool = true, dev_token: String = '') -> voi
 
 
 ##region     -- Endpoints
-const App = preload("res://addons/hathora_api/api/app/app.gd")
-const Auth = preload("res://addons/hathora_api/api/auth/auth.gd")
-const Billing = preload("res://addons/hathora_api/api/billing/billing.gd")
-const Build = preload("res://addons/hathora_api/api/build/build.gd")
-const Deployment = preload("res://addons/hathora_api/api/deployment/deployment.gd")
-const Discovery = preload("res://addons/hathora_api/api/discovery/discovery.gd")
-const Lobby = preload("res://addons/hathora_api/api/lobby/lobby.gd")
-const Log = preload("res://addons/hathora_api/api/log/log.gd")
-const Managment = preload("res://addons/hathora_api/api/managment/managment.gd")
-const Metrics = preload("res://addons/hathora_api/api/metrics/metrics.gd")
-const Processes = preload("res://addons/hathora_api/api/processes/processes.gd")
-const Room = preload("res://addons/hathora_api/api/room/room.gd")
+const App := preload("res://addons/hathora_api/api/app/app.gd")
+const Auth := preload("res://addons/hathora_api/api/auth/auth.gd")
+const Billing := preload("res://addons/hathora_api/api/billing/billing.gd")
+const Build := preload("res://addons/hathora_api/api/build/build.gd")
+const Deployment := preload("res://addons/hathora_api/api/deployment/deployment.gd")
+const Discovery := preload("res://addons/hathora_api/api/discovery/discovery.gd")
+const Lobby := preload("res://addons/hathora_api/api/lobby/lobby.gd")
+const Log := preload("res://addons/hathora_api/api/log/log.gd")
+const Managment := preload("res://addons/hathora_api/api/managment/managment.gd")
+const Metrics := preload("res://addons/hathora_api/api/metrics/metrics.gd")
+const Processes := preload("res://addons/hathora_api/api/processes/processes.gd")
+const Room := preload("res://addons/hathora_api/api/room/room.gd")
 #endregion   -- Endpoints

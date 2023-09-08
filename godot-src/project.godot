@@ -19,6 +19,7 @@ config/icon="res://icon.svg"
 
 HathoraClient="*res://addons/hathora_api/HathoraClient.tscn"
 HathoraConstants="*res://addons/hathora_api/HathoraConstants.gd"
+HathoraEventBus="*res://addons/hathora_api/HathoraEventBus.gd"
 
 [display]
 
