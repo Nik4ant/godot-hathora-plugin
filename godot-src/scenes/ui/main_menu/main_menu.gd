@@ -17,14 +17,14 @@ func _on_btn_create_lobby():
 		print("Login error: ", login_response_async.error_message)
 		return
 	print("Auth token async: ", login_response_async.auth_token)
-	
 	# OR
 	
 	HathoraEventBus.on_login_anonymous.connect(
-		func(login_response_sync) -> void:
-			if login_response_sync.error != OK:
-				print("Login error: ", login_response_sync.error_message)
-			print("Auth token sync: ", login_response_sync.auth_token)
+		func(response_sync) -> void:
+			if response_sync.error != OK:
+				print("Login error: ", response_sync.error_message)
+				return
+			print("Auth token sync: ", response_sync.auth_token)
 	, CONNECT_ONE_SHOT)
 	HathoraClient.Auth.V1.login_anonymous_sync()
 	
@@ -48,11 +48,3 @@ func _on_btn_create_lobby():
 #		print(": ", create_response.error_message)
 #		return
 #	print(connection.exposed_port.host, ':', connection.exposed_port.port)
-
-
-func example_async():
-	# TODO:
-	pass
-
-func example_sync():
-	HathoraClient.Auth.V1.login_anonymous_sync()

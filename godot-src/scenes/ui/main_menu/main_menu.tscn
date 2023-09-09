@@ -22,7 +22,7 @@ grow_vertical = 2
 theme = ExtResource("1_x4ta3")
 script = ExtResource("2_cd2x5")
 
-[node name="Label" type="Label" parent="."]
+[node name="debug_label" type="Label" parent="."]
 layout_mode = 1
 anchors_preset = 8
 anchor_left = 0.5

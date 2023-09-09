@@ -1,7 +1,5 @@
 ## Things to improve:
-- Handlers for status codes: 400, 404, 500 and `_` (others) are pretty much the same
-UPD: HTTP module handles those basic errors, but it's never mentioned anywhere
-- TODO: Rewrite that madness inside Http. Minor duplication is fine
+- INSTEAD OF DESERIALIZING RESPONSES MANUALLY PUT THAT LOGIC INSIDE THE RESPONSE CLASS!!!!!
 - TODO: Add small function to quickly deserialize ExposedPort (with asserts and stuff)
 - Keep in mind that docs should look nice: https://docs.godotengine.org/en/stable/tutorials/scripting/gdscript/gdscript_documentation_comments.html
 + Don't forget about the English recomendations as well
