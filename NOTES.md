@@ -1,6 +1,23 @@
+# Steps to add a new endpoint:
+0) ctrl+c, ctrl+v an existing region
+1) Rename region, function and response class
+2) Change return type
+3) Add a signal to HathoraEventBus and rename usages in both functions
+4) Replace params in both functions, change HTTP request method + request params
+5) Change response class fields + deserialization process
+5.1) Replace ASSERT error messages
+6) [Optional] Add custom hints
+7) [Optional] Add custom error messages
+
 ## Things to improve:
-- INSTEAD OF DESERIALIZING RESPONSES MANUALLY PUT THAT LOGIC INSIDE THE RESPONSE CLASS!!!!!
-- TODO: Add small function to quickly deserialize ExposedPort (with asserts and stuff)
+- HUGE ISSUE! before connecting to api_response.request_finished signal
+CHECK FOR ERRORS FIRST! (or maybe just ignore this - leave to the user, because error is printed anyway)
+- SUPER IDEA! MAKE A SINGLE AUTOLOAD!!
+Hathora <-- single autoload that contains everything
+Hathora.event_bus
+[Put HathoraConstants inside Hathora]
+Hathora.Auth.V1
+[Somehow put enums as well, like: Hathora.Error.Ok ? idk]
 - Keep in mind that docs should look nice: https://docs.godotengine.org/en/stable/tutorials/scripting/gdscript/gdscript_documentation_comments.html
 + Don't forget about the English recomendations as well
 

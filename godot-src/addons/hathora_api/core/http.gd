@@ -2,22 +2,21 @@ class_name Http extends Object
 
 ## MUST be set after init() call
 static var http_node: HTTPRequest
-# Note(Nik4ant): I wonder if it would be better to just pass 
-# HTTPRequest node as a param to GET/POST/DELETE functions below...
+
 static func init(request_node: HTTPRequest) -> void:
 	http_node = request_node
 
 
-const HathoraError = preload("res://addons/hathora_api/core/error.gd").HathoraError
 ## Contains result of an HTTP request interpreted as JSON
+## with some other useful info
 class ResponseJson:
+	var url: String
 	var data: Dictionary
 	var status_code: int = -1
 	var error_message: String = ''
-	var error: HathoraError
+	var error
 	## Used to wait for SPECIFIC http response
 	## rather than waiting for ANY (random) http response
-	## (Might be helpful for making multiple requests at once)
 	signal request_completed
 
 
@@ -40,6 +39,7 @@ static func get_sync(url: String, headers: Array[String]) -> ResponseJson:
 	assert(is_instance_valid(http_node), "ASSERT! Can't perform GET request without HTTPRequest node being passed to init() function")
 	
 	var response: ResponseJson = ResponseJson.new()
+	response.url = url
 	http_node.request_completed.connect(
 		func(result: int, response_code: int, _headers: PackedStringArray, body: PackedByteArray) -> void:
 			response.status_code = response_code
@@ -52,18 +52,18 @@ static func get_sync(url: String, headers: Array[String]) -> ResponseJson:
 					"JSON parsing error: ", json.get_error_message(), 
 					" in `", raw_string, "` at line ", json.get_error_line()
 				)
-				response.error = HathoraError.JsonError
+				response.error = Hathora.Error.JsonError
 				response.error_message = "Can't parse response"
 			response.data = json_parse_or(raw_string, {})
 			_map_error_to(response, response_code, url)
 			response.request_completed.emit()
 	
-	, CONNECT_ONE_SHOT | CONNECT_DEFERRED | CONNECT_REFERENCE_COUNTED)
+	, CONNECT_ONE_SHOT | CONNECT_DEFERRED)
 	# Do the actual request
 	var request_error: Error = http_node.request(url, headers, HTTPClient.METHOD_GET)
 	if request_error != OK:
 		response.data = {}
-		response.error = HathoraError.InternalHttpError
+		response.error = Hathora.Error.InternalHttpError
 		response.error_message = str(
 			"Error while doing GET request to `", url, 
 			"`; Message: `", error_string(request_error), '`'
@@ -78,6 +78,7 @@ static func post_sync(url: String, headers: Array[String], body: Dictionary) -> 
 	assert(is_instance_valid(http_node), "ASSERT! Can't perform GET request without HTTPRequest node being passed to init() function")
 	
 	var response: ResponseJson = ResponseJson.new()
+	response.url = url
 	http_node.request_completed.connect(
 		func(result: int, response_code: int, _headers: PackedStringArray, body: PackedByteArray) -> void:
 			response.status_code = response_code
@@ -90,13 +91,13 @@ static func post_sync(url: String, headers: Array[String], body: Dictionary) -> 
 					"JSON parsing error: ", json.get_error_message(), 
 					" in `", raw_string, "` at line ", json.get_error_line()
 				)
-				response.error = HathoraError.JsonError
+				response.error = Hathora.Error.JsonError
 				response.error_message = "Can't parse response"
 			response.data = json_parse_or(raw_string, {})
 			_map_error_to(response, response_code, url)
 			response.request_completed.emit()
 	
-	, CONNECT_ONE_SHOT)
+	, CONNECT_ONE_SHOT | CONNECT_DEFERRED)
 	# Do the actual request
 	var request_error: Error = http_node.request(
 		url, headers, 
@@ -104,7 +105,7 @@ static func post_sync(url: String, headers: Array[String], body: Dictionary) -> 
 	)
 	if request_error != OK:
 		response.data = {}
-		response.error = HathoraError.InternalHttpError
+		response.error = Hathora.Error.InternalHttpError
 		response.error_message = str(
 			"Error while doing GET request to `", url, 
 			"`; Message: `", error_string(request_error), '`'
@@ -117,31 +118,32 @@ static func post_sync(url: String, headers: Array[String], body: Dictionary) -> 
 
 
 ## To-DO: explain. 
-## TL;DR checks the most common errors and maps them to response object
 static func _map_error_to(response: ResponseJson, status_code: int, url: String) -> void:
 	# Handle status codes that have the same error no matter the context
 	if status_code < 200 or status_code >= 300:
 		match status_code:
+			400:
+				response.error = Hathora.Error.BadRequest
+			401:
+				response.error = Hathora.Error.Unauthorized
+			402:
+				response.error = Hathora.Error.MustPayFirst
+			403:
+				response.error = Hathora.Error.Forbidden
 			404:
-				response.error = HathoraError.ApiDontExists
-				response.error_message = str(
-					"Api endpoint `", url, "` doesn't exist"
-				)
-				push_error(response.error_message)
+				response.error = Hathora.Error.ApiDontExists
+			422:
+				response.error = Hathora.Error.ServerCantProcess
+			429:
+				response.error = Hathora.Error.TooManyRequests
 			500:
-				response.error = HathoraError.ServerError
-				response.error_message = "Hathora servers don't respond"
-				push_error(response.error_message)
+				response.error = Hathora.Error.ServerError
 			_:
-				response.error = HathoraError.Unknown
-				response.error_message = str(
-					"Unknown error status code.\nUrl: `", url,
-					"`; Status code: ", status_code, "; Response data: ", response.data
-				)
+				response.error = Hathora.Error.Unknown
 
 
 ## Attempts to parse json string, if error occurs returns default value
-## (Error is printed via push_error)
+## Note: If parsed data is just a string it returned as {"__message__": *string*}
 static func json_parse_or(raw_string: String, default_value: Dictionary) -> Dictionary:
 	# Note: Could have used JSON.parse_string(), but it doesn't return 
 	# a proper error message, making it harder to debug

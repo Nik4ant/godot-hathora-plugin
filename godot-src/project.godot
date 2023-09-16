@@ -17,8 +17,7 @@ config/icon="res://icon.svg"
 
 [autoload]
 
-HathoraClient="*res://addons/hathora_api/HathoraClient.tscn"
-HathoraConstants="*res://addons/hathora_api/HathoraConstants.gd"
+Hathora="*res://addons/hathora_api/HathoraClient.tscn"
 HathoraEventBus="*res://addons/hathora_api/HathoraEventBus.gd"
 
 [display]

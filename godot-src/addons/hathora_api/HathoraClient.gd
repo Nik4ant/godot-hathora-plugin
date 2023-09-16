@@ -9,6 +9,7 @@ extends Node
 ## Dev token for Hathora API
 ## (Exists ONLY IF is_client is false, meaning it's server-side)
 @export var DEV_TOKEN: String = ''
+var DEV_AUTH_HEADER: String
 #endregion  -- Configuration
 
 
@@ -25,11 +26,15 @@ func init(app_id: String, is_client: bool = true, dev_token: String = '') -> voi
 	if not is_client:
 		assert(dev_token != '', "ASSERT! Server-side api MUST have a valid dev token")
 		self.DEV_TOKEN = dev_token
+		self.DEV_AUTH_HEADER = "Authorization: Bearer " + Hathora.DEV_TOKEN
 	elif dev_token != '':
 		push_warning("WARNING! Dev token will be ignored by the API because using Hathora Dev token on the client side is dangerous! See [to-do: link]")
 
 
-##region     -- Endpoints
+const Error := preload("res://addons/hathora_api/core/error.gd")
+
+#region      -- Endpoints
+# See: https://hathora.dev/api#tag/
 const App := preload("res://addons/hathora_api/api/app/app.gd")
 const Auth := preload("res://addons/hathora_api/api/auth/auth.gd")
 const Billing := preload("res://addons/hathora_api/api/billing/billing.gd")
@@ -43,3 +48,29 @@ const Metrics := preload("res://addons/hathora_api/api/metrics/metrics.gd")
 const Processes := preload("res://addons/hathora_api/api/processes/processes.gd")
 const Room := preload("res://addons/hathora_api/api/room/room.gd")
 #endregion   -- Endpoints
+
+#region      -- Constants
+const REGIONS: Array[String] = [
+	"Seattle",			# US
+	"Washington_DC",	# US
+	"Chicago",			# US
+	"London",			# Uk
+	"Frankfurt",		# Germany
+	"Mumbai",			# India
+	"Tokyo",			# Japan
+	"Sydney",			# Australia
+	"Singapore",		# Singapore
+	"Sao_Paulo",		# Brazil
+]
+const VISIBILITIES: Array[String] = [
+	"public",
+	"private",
+	"local"
+]
+#endregion   -- Constants
+
+
+func assert_is_server() -> bool:
+	assert(Hathora.is_client, "ASSERT! This api MUST be called only by server")
+	assert(Hathora.DEV_TOKEN != '', "ASSER! Hathora MUST have a valid DEV token. See init() function")
+	return true

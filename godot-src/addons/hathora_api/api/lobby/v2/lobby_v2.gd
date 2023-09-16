@@ -1,32 +1,30 @@
 # Lobby V2
-const HathoraError = preload("res://addons/hathora_api/core/error.gd").HathoraError
 const ResponseJson = preload("res://addons/hathora_api/core/http.gd").ResponseJson
+const Lobby = preload("res://addons/hathora_api/api/common_types.gd").Lobby
 
 ##region       -- create_lobby
 class CreateLobbyResponse:
-	var initial_config: Dictionary
-	var created_at_unix: int
-	var created_by: String
-	var visibility: String
-	var region: String
-	var room_id: String
-	var app_id: String
+	var lobby: Lobby
 	
-	var error: HathoraError
-	var error_message: String = ''
+	var error
+	var error_message: String
+	
+	func deserialize(data: Dictionary) -> void:
+		self.lobby = Lobby.deserialize(data)
 
-static func create(auth_token: String, visibility: String, region: String, initial_config: Dictionary = {}, room_id: String = '') -> CreateLobbyResponse:
-	assert(HathoraClient.APP_ID != '', "ASSERT! HathoraCLient MUST have a valid APP_ID. See init() function")
-	# Params validation
-	assert(HathoraConstants.REGIONS.has(region), "ASSERT! Region `" + region + "` doesn't exists")
-	assert(HathoraConstants.VISIBILITIES.has(visibility), "ASSERT! Visibility `" + visibility + "` doesn't exists")
+
+static func create_lobby_async(auth_token: String, visibility: String, region: String, initial_config: Dictionary = {}, room_id: String = '') -> CreateLobbyResponse:
+	assert(Hathora.APP_ID != '', "ASSERT! Hathora MUST have a valid APP_ID. See init() function")
+	# Validation
+	assert(Hathora.REGIONS.has(region), "ASSERT! Region `" + region + "` doesn't exists")
+	assert(Hathora.VISIBILITIES.has(visibility), "ASSERT! Visibility `" + visibility + "` doesn't exists")
 	
-	var create_response: CreateLobbyResponse = CreateLobbyResponse.new()
-	var url: String = str("https://api.hathora.dev/lobby/v2/", HathoraClient.APP_ID, "/create")
+	var result: CreateLobbyResponse = CreateLobbyResponse.new()
+	var url: String = str("https://api.hathora.dev/lobby/v2/", Hathora.APP_ID, "/create")
 	if room_id != '':
 		url += "?roomId=" + room_id
 	# Api call
-	var api_response: ResponseJson = await Http.POST(
+	var api_response: ResponseJson = await Http.post_async(
 		url, 
 		["Content-Type: application/json", "Authorization: " + auth_token], 
 		{
@@ -35,76 +33,155 @@ static func create(auth_token: String, visibility: String, region: String, initi
 			"region": region
 		}
 	)
-	# On success
-	if api_response.status_code == 201:
-		create_response.error = HathoraError.Ok
+	# Api error
+	result.error = api_response.error
+	if result.error != Hathora.Error.Ok:
+		var cant_process_hint: Array = []
+		if room_id != '':
+			cant_process_hint.push_back("Something may be wrong with room_id `" + room_id + '`')
 		
-		assert(api_response.data.has("initialConfig"), "ASSERT! Missing parameter \"initialConfig\" during json parsing in lobby creation")
-		create_response.initial_config = api_response.data["initialConfig"]
-		
-		assert(api_response.data.has("createdAt"), "ASSERT! Missing parameter \"createdAt\" during json parsing in lobby creation")
-		create_response.created_at_unix = Time.get_unix_time_from_datetime_string(api_response.data["createdAt"])
-		
-		assert(api_response.data.has("createdBy"), "ASSERT! Missing parameter \"createdBy\" during json parsing in lobby creation")
-		create_response.created_by = api_response.data["createdBy"]
-		
-		assert(api_response.data.has("visibility"), "ASSERT! Missing parameter \"visibility\" during json parsing in lobby creation")
-		create_response.visibility = api_response.data["visibility"]
-		
-		assert(api_response.data.has("region"), "ASSERT! Missing parameter \"region\" during json parsing in lobby creation")
-		create_response.region = api_response.data["region"]
-		
-		assert(api_response.data.has("roomId"), "ASSERT! Missing parameter \"roomId\" during json parsing in lobby creation")
-		create_response.room_id = api_response.data["roomId"]
-		
-		assert(api_response.data.has("appId"), "ASSERT! Missing parameter \"appId\" during json parsing in lobby creation")
-		create_response.app_id = api_response.data["appId"]
-		return create_response
+		result.error_message = Hathora.Error.push_default_or(
+			api_response, {
+				Hathora.Error.ServerCantProcess: cant_process_hint,
+				Hathora.Error.TooManyRequests: ["Make sure you're not calling this method too often"]
+			},
+			{
+				Hathora.Error.TooManyRequests: "Client attempts to create too many lobbies"
+			}
+		)
+	else:
+		result.deserialize(api_response.data)
 	
-	# Handle errors
-	match api_response.status_code:
-		400:
-			create_response.error = HathoraError.BadRequest
-			create_response.error_message = str(
-				"Something is wrong with your request to `", url,
-				"` Message: `", api_response.error_message,
-				"` Response data: ", api_response.data
-			)
-		401:
-			create_response.error = HathoraError.Unauthorized
-			create_response.error_message = str(
-				"Can't create lobby because auth token is invalid"
-			)
-		404:
-			create_response.error = HathoraError.ApiDontExists
-			create_response.error_message = str(
-				"Can't create lobby because api endpoint for url `", url, "` doesn't exist; Message: `",
-				api_response.error_message, '`'
-			)
-		422:
-			create_response.error = HathoraError.ServerCantProcess
-			create_response.error_message = str(
-				"Server can't process data given to it. Message: `", api_response.error_message,
-				"`. Response data: ", api_response.data
-			)
-		429:
-			create_response.error = HathoraError.TooManyRequests
-			create_response.error_message = str(
-				"User with token `", auth_token, "` exited lobby creation limit. Try again later"
-			)
-		500:
-			create_response.error = HathoraError.ServerError
-			create_response.error_message = str(
-				"Hathora servers don't respond: `", api_response.error_message, '`'
-			)
-		_:
-			create_response.error = HathoraError.Unknown
-			create_response.error_message = str(
-				"Unknown error occured during lobby creation: `",
-				api_response.error_message, "`; http status code: ",
-				api_response.status_code, "; data: ", api_response.data
-			)
-	
-	push_error(create_response.error_message)
-	return create_response
+	HathoraEventBus.on_create_lobby.emit(result)
+	return result
+
+
+static func create_lobby(auth_token: String, visibility: String, region: String, initial_config: Dictionary = {}, room_id: String = '') -> Signal:
+	create_lobby_async(auth_token, visibility, region, initial_config, room_id)
+	return HathoraEventBus.on_create_lobby
 #endregion     -- create_lobby
+ 
+
+##region       -- list_active_public_lobbies
+class ListActivePublicLobbiesResponse:
+	var lobbies: Array[Lobby] = []
+	
+	var error
+	var error_message: String
+	
+	func deserialize(data) -> void:
+		for lobby in data:
+			self.lobbies.push_back(Lobby.deserialize(lobby))
+
+
+static func list_active_public_lobbies_async(region: String = '') -> ListActivePublicLobbiesResponse:
+	assert(Hathora.APP_ID != '', "ASSERT! Hathora MUST have a valid APP_ID. See init() function")
+	
+	var result: ListActivePublicLobbiesResponse = ListActivePublicLobbiesResponse.new()
+	var url: String = str("https://api.hathora.dev/lobby/v2/", Hathora.APP_ID, "/list/public")
+	if region != '':
+		assert(Hathora.REGIONS.has(region), "ASSERT! Region `" + region + "` doesn't exists")
+		url += "?region=" + region
+	# Api call
+	var api_response: ResponseJson = await Http.get_async(
+		url, ["Content-Type: application/json"]
+	)
+	# Api errors
+	result.error = api_response.error	
+	if api_response.error != Hathora.Error.Ok:
+		result.error_message = Hathora.Error.push_default_or(api_response)
+	else:
+		result.deserialize(api_response.data)
+	
+	HathoraEventBus.on_list_active_public_lobbies.emit(result)
+	return result
+
+
+static func list_active_public_lobbies(region: String = '') -> Signal:
+	list_active_public_lobbies_async(region)
+	return HathoraEventBus.on_list_active_public_lobbies
+##endregion    -- list_active_public_lobbies
+
+
+##region       -- get_lobby_info
+class GetLobbyInfoResponse:
+	var lobby: Lobby
+	
+	var error
+	var error_message: String
+	
+	func deserialize(data: Dictionary) -> void:
+		self.lobby = Lobby.deserialize(data)
+
+
+static func get_lobby_info_async(room_id: String) -> GetLobbyInfoResponse:
+	assert(Hathora.APP_ID != '', "ASSERT! Hathora MUST have a valid APP_ID. See init() function")
+	
+	var result: GetLobbyInfoResponse = GetLobbyInfoResponse.new()
+	var url: String = str("https://api.hathora.dev/lobby/v2/", Hathora.APP_ID, "/info/", room_id)
+	# Api call
+	var api_response: ResponseJson = await Http.get_async(
+		url, ["Content-Type: application/json"]
+	)
+	# Api error
+	result.error = api_response.error
+	if result.error != Hathora.Error.Ok:
+		result.error_message = Hathora.Error.push_default_or(
+			api_response, {
+				Hathora.Error.ApiDontExists: ["Make sure room with id `" + room_id, "` exists"]
+			}
+		)
+	else:
+		result.deserialize(api_response.data)
+	
+	HathoraEventBus.on_get_lobby_info.emit(result)
+	return result
+
+
+static func get_lobby_info(room_id: String) -> Signal:
+	get_lobby_info_async(room_id)
+	return HathoraEventBus.on_get_lobby_info
+##endregion    -- get_lobby_info
+
+
+##region       -- set_lobby_state
+class SetLobbyStateResponse:
+	var lobby: Lobby
+	
+	var error
+	var error_message: String
+	
+	func deserialize(data: Dictionary) -> void:
+		self.lobby = Lobby.deserialize(data)
+
+
+static func set_lobby_state_async(room_id: String, state: Dictionary) -> SetLobbyStateResponse:
+	assert(Hathora.APP_ID != '', "ASSERT! Hathora MUST have a valid APP_ID. See init() function")
+	assert(Hathora.assert_is_server(), '')
+	
+	var result: SetLobbyStateResponse = SetLobbyStateResponse.new()
+	var url: String = str("https://api.hathora.dev/lobby/v2/", Hathora.APP_ID, "/setState/", room_id)
+	# Api call
+	var api_response: ResponseJson = await Http.post_async(
+		url, ["Content-Type: application/json", Hathora.DEV_AUTH_HEADER], {"state": state}
+	)
+	# Api error
+	result.error = api_response.error
+	if result.error != Hathora.Error.Ok:
+		result.error_message = Hathora.Error.push_default_or(
+			api_response, {
+				Hathora.Error.ApiDontExists: ["Make sure room with id `" + room_id, "` exists"],
+				Hathora.Error.ServerCantProcess: ["Make sure your state is valid an smaller than 1MB"]
+			}
+		)
+	else:
+		result.deserialize(api_response.data)
+	
+	HathoraEventBus.on_set_lobby_state.emit(result)
+	return result
+
+
+static func set_lobby_state(room_id: String, state: Dictionary) -> Signal:
+	set_lobby_state_async(room_id, state)
+	return HathoraEventBus.on_set_lobby_state
+##endregion    -- set_lobby_state
