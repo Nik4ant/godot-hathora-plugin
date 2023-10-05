@@ -1,5 +1,3 @@
-class_name Http extends Object
-
 ## MUST be set after init() call
 static var http_node: HTTPRequest
 
@@ -117,6 +115,35 @@ static func post_sync(url: String, headers: Array[String], body: Dictionary) -> 
 #endregion  -- GET/POST sync
 
 
+static func download_file_async(url: String) -> ResponseJson:
+	var response: ResponseJson = ResponseJson.new()
+	response.url = url
+	http_node.request_completed.connect(
+		func(result: int, response_code: int, _headers: PackedStringArray, body: PackedByteArray) -> void:
+			response.status_code = response_code
+			_map_error_to(response, response_code, url)
+			
+			var json = JSON.new()
+			var parse_result = json.parse(body.get_string_from_utf8())
+			if parse_result != OK:
+				var error_message: String = str(
+					"JSON parsing error: `", json.get_error_message(),
+					"` at line ", json.get_error_line()
+				)
+				push_error(error_message)
+				response.error_message = error_message
+				response.error = Hathora.Error.JsonError
+			else:
+				response.data = json.data
+			response.request_completed.emit()
+	, CONNECT_ONE_SHOT)
+	
+	http_node.request(url)
+	await response.request_completed
+	
+	return response
+
+
 ## To-DO: explain. 
 static func _map_error_to(response: ResponseJson, status_code: int, url: String) -> void:
 	# Handle status codes that have the same error no matter the context
@@ -140,7 +167,8 @@ static func _map_error_to(response: ResponseJson, status_code: int, url: String)
 				response.error = Hathora.Error.ServerError
 			_:
 				response.error = Hathora.Error.Unknown
-
+	else:
+		response.error = Hathora.Error.Ok
 
 ## Attempts to parse json string, if error occurs returns default value
 ## Note: If parsed data is just a string it returned as {"__message__": *string*}

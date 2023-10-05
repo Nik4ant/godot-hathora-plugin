@@ -17,7 +17,7 @@ static func login_anonymous_async() -> LoginAnonymousResponse:
 	var result: LoginAnonymousResponse = LoginAnonymousResponse.new()
 	# Api call
 	var url: String = str("https://api.hathora.dev/auth/v1/", Hathora.APP_ID, "/login/anonymous")
-	var api_response: ResponseJson = await Http.post_async(
+	var api_response: ResponseJson = await Hathora.Http.post_async(
 		url, ["Content-Type: application/json"], {}
 	)
 	# Api errors
@@ -53,7 +53,7 @@ static func login_nickname_async(nickname: String) -> LoginNicknameResponse:
 	var result: LoginNicknameResponse = LoginNicknameResponse.new()
 	# Api call
 	var url: String = str("https://api.hathora.dev/auth/v1/", Hathora.APP_ID, "/login/nickname")
-	var api_response: ResponseJson = await Http.post_async(
+	var api_response: ResponseJson = await Hathora.Http.post_async(
 		url, ["Content-Type: application/json"], {
 			"nickname": nickname
 		}
@@ -91,7 +91,7 @@ static func login_google_async(id_token: String) -> LoginGoogleResponse:
 	var result: LoginGoogleResponse = LoginGoogleResponse.new()
 	# Api call
 	var url: String = str("https://api.hathora.dev/auth/v1/", Hathora.APP_ID, "/login/google")
-	var api_response: ResponseJson = await Http.post_async(
+	var api_response: ResponseJson = await Hathora.Http.post_async(
 		url, ["Content-Type: application/json"], {
 			"idToken": id_token
 		}

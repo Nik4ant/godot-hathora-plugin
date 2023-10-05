@@ -29,9 +29,14 @@ func init(app_id: String, is_client: bool = true, dev_token: String = '') -> voi
 		self.DEV_AUTH_HEADER = "Authorization: Bearer " + Hathora.DEV_TOKEN
 	elif dev_token != '':
 		push_warning("WARNING! Dev token will be ignored by the API because using Hathora Dev token on the client side is dangerous! See [to-do: link]")
+	
+	push_warning("TESTING GENERATOR CODE, REMOVE THIS LATER!!!")
+	const test = preload("res://addons/hathora_api/generator/api_generator.gd")
+	test.generate_api()
 
 
 const Error := preload("res://addons/hathora_api/core/error.gd")
+const Http := preload("res://addons/hathora_api/core/http.gd")
 
 #region      -- Endpoints
 # See: https://hathora.dev/api#tag/

@@ -4,6 +4,7 @@ const CommonTypes = preload("res://addons/hathora_api/api/common_types.gd")
 const ExposedPort = CommonTypes.ExposedPort
 const RoomAllocation = CommonTypes.RoomAllocation
 const Room = CommonTypes.Room
+
 ##region   -- get_connection_info
 class GetConnectionInfoResponse:
 	var additional_exposed_ports: Array[ExposedPort]
@@ -69,7 +70,7 @@ static func __get_connection_info_async(room_id: String) -> GetConnectionInfoRes
 		Hathora.APP_ID, "/connectioninfo/", room_id
 	)
 	# Api call
-	var api_response: ResponseJson = await Http.get_async(
+	var api_response: ResponseJson = await Hathora.Http.get_async(
 		url, ["Content-Type: application/json"]
 	)
 	
@@ -127,7 +128,7 @@ static func create_room_async(region: String, room_config: Dictionary = {}) -> C
 		"https://api.hathora.dev/rooms/v2/", Hathora.APP_ID, "/create/"
 	)
 	# Api call
-	var api_response: ResponseJson = await Http.post_async(
+	var api_response: ResponseJson = await Hathora.Http.post_async(
 		url, ["Content-Type: application/json", Hathora.DEV_AUTH_HEADER], {
 			"roomConfig": room_config,
 			"region": region
@@ -180,7 +181,7 @@ class GetRoomInfoResponse:
 			self.allocations.push_back(RoomAllocation.deserialize(allocation))
 		
 		assert(data.has("roomConfig"), "ASSERT! Missing parameter \"roomConfig\" in get_room_info response")
-		self.room_config = Http.json_parse_or(data["roomConfig"], {})
+		self.room_config = Hathora.Http.json_parse_or(data["roomConfig"], {})
 		
 		assert(data.has("roomId"), "ASSERT! Missing parameter \"roomId\" in get_room_info response")
 		self.room_id = data["roomId"]
@@ -195,7 +196,7 @@ static func get_room_info_async(room_id: String) -> GetRoomInfoResponse:
 		"https://api.hathora.dev/rooms/v2/", Hathora.APP_ID, "/info/", room_id
 	)
 	# Api call
-	var api_response: ResponseJson = await Http.get_async(
+	var api_response: ResponseJson = await Hathora.Http.get_async(
 		url, ["Content-Type: application/json", Hathora.DEV_AUTH_HEADER]
 	)
 	
@@ -241,7 +242,7 @@ static func get_active_rooms_for_process_async(process_id: String) -> GetActiveR
 		"/list/", process_id, "/active"
 	)
 	# Api call
-	var api_response: ResponseJson = await Http.get_async(
+	var api_response: ResponseJson = await Hathora.Http.get_async(
 		url, ["Content-Type: application/json", Hathora.DEV_AUTH_HEADER]
 	)
 	
@@ -287,7 +288,7 @@ static func get_inactive_rooms_for_process_async(process_id: String) -> GetInact
 		"/list/", process_id, "/inactive"
 	)
 	# Api call
-	var api_response: ResponseJson = await Http.get_async(
+	var api_response: ResponseJson = await Hathora.Http.get_async(
 		url, ["Content-Type: application/json", Hathora.DEV_AUTH_HEADER]
 	)
 	
@@ -326,7 +327,7 @@ static func destroy_room_async(room_id: String) -> DestroyRoomResponse:
 		"https://api.hathora.dev/rooms/v2/", Hathora.APP_ID, "/destroy/", room_id
 	)
 	# Api call
-	var api_response: ResponseJson = await Http.post_async(
+	var api_response: ResponseJson = await Hathora.Http.post_async(
 		url, ["Content-Type: application/json", Hathora.DEV_AUTH_HEADER], {}
 	)
 	
@@ -368,7 +369,7 @@ static func suspend_room_async(room_id: String) -> SuspendRoomResponse:
 		"https://api.hathora.dev/rooms/v2/", Hathora.APP_ID, "/suspend/", room_id
 	)
 	# Api call
-	var api_response: ResponseJson = await Http.post_async(
+	var api_response: ResponseJson = await Hathora.Http.post_async(
 		url, ["Content-Type: application/json", Hathora.DEV_AUTH_HEADER], {}
 	)
 	

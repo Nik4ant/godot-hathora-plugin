@@ -9,15 +9,13 @@
 6) [Optional] Add custom hints
 7) [Optional] Add custom error messages
 
+# Crazy ideas:
+1) Monads!!!!!
+
+
 ## Things to improve:
 - HUGE ISSUE! before connecting to api_response.request_finished signal
 CHECK FOR ERRORS FIRST! (or maybe just ignore this - leave to the user, because error is printed anyway)
-- SUPER IDEA! MAKE A SINGLE AUTOLOAD!!
-Hathora <-- single autoload that contains everything
-Hathora.event_bus
-[Put HathoraConstants inside Hathora]
-Hathora.Auth.V1
-[Somehow put enums as well, like: Hathora.Error.Ok ? idk]
 - Keep in mind that docs should look nice: https://docs.godotengine.org/en/stable/tutorials/scripting/gdscript/gdscript_documentation_comments.html
 + Don't forget about the English recomendations as well
 
@@ -31,4 +29,4 @@ features this is simply not available :(
 
 This section is used to keep track of those features in case some of them get fixed/changed in the newer Godot versions:
 - enums can't be accessed without preloading the script
-- Timers can't be created using code only without access to SceneTree
+- Timers can't be created without access to SceneTree

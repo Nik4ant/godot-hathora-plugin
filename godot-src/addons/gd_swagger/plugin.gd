@@ -3,10 +3,9 @@ extends EditorPlugin
 
 
 const AUTOLOADS: Array = [
-	["Hathora", "res://addons/hathora_api/HathoraClient.tscn"],
-	["HathoraEventBus", "res://addons/hathora_api/core/HathoraEventBus.gd"]
+	["GD", "res://addons/gd_swagger/gd_generator/gdscript.gd"],
+	["GDSwagger", "res://addons/gd_swagger/swagger/swagger.gd"]
 ]
-
 
 func _enter_tree() -> void:
 	for autoload in AUTOLOADS:
@@ -16,6 +15,3 @@ func _enter_tree() -> void:
 func _exit_tree() -> void:
 	for autoload in AUTOLOADS:
 		remove_autoload_singleton(autoload[0])
-
-
-

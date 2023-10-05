@@ -24,8 +24,8 @@ static func create_lobby_async(auth_token: String, visibility: String, region: S
 	if room_id != '':
 		url += "?roomId=" + room_id
 	# Api call
-	var api_response: ResponseJson = await Http.post_async(
-		url, 
+	var api_response: ResponseJson = await Hathora.Http.post_async(
+		url,
 		["Content-Type: application/json", "Authorization: " + auth_token], 
 		{
 			"visibility": visibility,
@@ -38,7 +38,7 @@ static func create_lobby_async(auth_token: String, visibility: String, region: S
 	if result.error != Hathora.Error.Ok:
 		var cant_process_hint: Array = []
 		if room_id != '':
-			cant_process_hint.push_back("Something may be wrong with room_id `" + room_id + '`')
+			cant_process_hint.push_back("Make sure your custom room_id `" + room_id + '` is valid')
 		
 		result.error_message = Hathora.Error.push_default_or(
 			api_response, {
@@ -83,11 +83,11 @@ static func list_active_public_lobbies_async(region: String = '') -> ListActiveP
 		assert(Hathora.REGIONS.has(region), "ASSERT! Region `" + region + "` doesn't exists")
 		url += "?region=" + region
 	# Api call
-	var api_response: ResponseJson = await Http.get_async(
+	var api_response: ResponseJson = await Hathora.Http.get_async(
 		url, ["Content-Type: application/json"]
 	)
 	# Api errors
-	result.error = api_response.error	
+	result.error = api_response.error
 	if api_response.error != Hathora.Error.Ok:
 		result.error_message = Hathora.Error.push_default_or(api_response)
 	else:
@@ -120,7 +120,7 @@ static func get_lobby_info_async(room_id: String) -> GetLobbyInfoResponse:
 	var result: GetLobbyInfoResponse = GetLobbyInfoResponse.new()
 	var url: String = str("https://api.hathora.dev/lobby/v2/", Hathora.APP_ID, "/info/", room_id)
 	# Api call
-	var api_response: ResponseJson = await Http.get_async(
+	var api_response: ResponseJson = await Hathora.Http.get_async(
 		url, ["Content-Type: application/json"]
 	)
 	# Api error
@@ -162,7 +162,7 @@ static func set_lobby_state_async(room_id: String, state: Dictionary) -> SetLobb
 	var result: SetLobbyStateResponse = SetLobbyStateResponse.new()
 	var url: String = str("https://api.hathora.dev/lobby/v2/", Hathora.APP_ID, "/setState/", room_id)
 	# Api call
-	var api_response: ResponseJson = await Http.post_async(
+	var api_response: ResponseJson = await Hathora.Http.post_async(
 		url, ["Content-Type: application/json", Hathora.DEV_AUTH_HEADER], {"state": state}
 	)
 	# Api error

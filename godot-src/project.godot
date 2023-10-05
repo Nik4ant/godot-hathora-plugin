@@ -18,7 +18,9 @@ config/icon="res://icon.svg"
 [autoload]
 
 Hathora="*res://addons/hathora_api/HathoraClient.tscn"
-HathoraEventBus="*res://addons/hathora_api/HathoraEventBus.gd"
+HathoraEventBus="*res://addons/hathora_api/core/HathoraEventBus.gd"
+GD="*res://addons/gd_swagger/gd_generator/gdscript.gd"
+GDSwagger="*res://addons/gd_swagger/swagger/swagger.gd"
 
 [display]
 
@@ -30,7 +32,11 @@ window/stretch/mode="canvas_items"
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/hathora_api/plugin.cfg")
+enabled=PackedStringArray("res://addons/gd_swagger/plugin.cfg", "res://addons/hathora_api/plugin.cfg")
+
+[filesystem]
+
+import/blender/enabled=false
 
 [rendering]
 

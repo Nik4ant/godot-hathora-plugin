@@ -99,7 +99,7 @@ class Room:
 			result.current_allocation = RoomAllocation.deserialize(data["current_allocation"])
 		
 		assert(data.has("roomConfig"), "ASSERT! Missing parameter \"roomConfig\" in get_room_info response")
-		result.room_config = Http.json_parse_or(data["roomConfig"], {})
+		result.room_config = Hathora.Http.json_parse_or(data["roomConfig"], {})
 		
 		assert(data.has("roomId"), "ASSERT! Missing parameter \"roomId\" in get_room_info response")
 		result.room_id = data["roomId"]
