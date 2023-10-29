@@ -6,6 +6,7 @@ extends Control
 
 func _ready() -> void:
 	Hathora.init("app-b77567d4-9636-4755-a024-c50d01025ed6")
+	Hathora.Room.V2.get_connection_info("blah-blah-blah")
 	# Signals
 	btn_create_lobby.pressed.connect(_on_btn_create_lobby)
 

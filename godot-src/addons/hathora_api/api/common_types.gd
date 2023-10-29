@@ -105,3 +105,35 @@ class Room:
 		result.room_id = data["roomId"]
 		
 		return result
+
+
+# TODO: TYPES BELOW DECLARED AS DUMMY TYPES
+# (replace them with a real once later)
+class AuthConfiguration:
+	pass
+class ApplicationWithDeployment:
+	pass
+class Invoice:
+	pass
+class LinkPaymentMethod:
+	pass
+class AchPaymentMethod:
+	pass
+class CardPaymentMethod:
+	pass
+class Build:
+	pass
+class Deployment:
+	pass
+class RoomWithoutAllocations:
+	pass
+class Process:
+	pass
+class ProcessWithRooms:
+	pass
+class LobbyV3:
+	pass
+class MetricValue:
+	pass
+class ContainerPort:
+	pass

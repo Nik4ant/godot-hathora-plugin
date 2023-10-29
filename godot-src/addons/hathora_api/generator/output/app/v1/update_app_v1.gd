@@ -1,10 +1,9 @@
-# App V1
+# AppV1
 const ResponseJson = preload("res://addons/hathora_api/core/http.gd").ResponseJson
-const AuthConfiguration = preload("res://addons/hathora_api/api/common_types.gd").AuthConfiguration
 
 
-##region       -- create_app
-class CreateAppResponse:
+##region       -- update_app
+class UpdateAppResponse:
 	var error
 	var error_message: String
 	
@@ -47,12 +46,16 @@ class CreateAppResponse:
 		self.app_name = data["appName"]
 
 
-func create_app_async(auth_configuration: Dictionary, app_name: String) -> CreateAppResponse:
+func update_app_async(auth_configuration: Dictionary, app_name: String) -> UpdateAppResponse:
 	assert(Hathora.APP_ID != '', "Hathora MUST have a valid APP_ID. See init() function")
 	assert(Hathora.assert_is_server(), "unreacheble")
 	
-	var result: CreateAppResponse = CreateAppResponse.new()
-	var url: String = "https://api.hathora.dev/apps/v1/create"
+	var result: UpdateAppResponse = UpdateAppResponse.new()
+	var url: String = "https://api.hathora.dev/apps/v1/update/{appId}".format(
+		{
+			"appId": Hathora.APP_ID
+		}
+	)
 	# Api call
 	var api_response: ResponseJson = await Hathora.Http.post_async(
 		url,
@@ -66,18 +69,18 @@ func create_app_async(auth_configuration: Dictionary, app_name: String) -> Creat
 	result.error = api_response.error
 	if result.error != Hathora.Error.Ok:
 		# HUMAN! I need your help - write error messages pls
-		# List of error codes: [422, 500]
+		# List of error codes: [404, 500]
 		result.error_message = Hathora.Error.push_default_or(
 			api_response, {}
 		)
 	else:
 		result.deserialize(api_response.data)
 	
-	HathoraEventBus.on_create_app.emit(result)
+	HathoraEventBus.on_update_app.emit(result)
 	return result
 
 
-func create_app(auth_configuration: Dictionary, app_name: String) -> Signal:
-	create_app_async(auth_configuration, app_name)
-	return HathoraEventBus.on_create_app
-##endregion    -- create_app
+func update_app(auth_configuration: Dictionary, app_name: String) -> Signal:
+	update_app_async(auth_configuration, app_name)
+	return HathoraEventBus.on_update_app
+##endregion    -- update_app

@@ -78,7 +78,7 @@ static func __get_connection_info_async(room_id: String) -> GetConnectionInfoRes
 	if api_response.error != Hathora.Error.Ok:
 		result.error_message = Hathora.Error.push_default_or(
 			api_response, {
-				Hathora.Error.ApiDontExists: ["Make sure room with id `" + room_id, "` exists"],
+				Hathora.Error.ApiDontExists: ["Make sure room with id `" + room_id + "` exists"],
 			}
 		)
 	else:

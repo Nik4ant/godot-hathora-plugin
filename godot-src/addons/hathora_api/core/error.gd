@@ -69,10 +69,10 @@ static func push_default_or(request: ResponseJson, custom_hints: Dictionary = {}
 	
 	assert(error_message != '', "ASSERT! Unknown error on the plugin side, please report")
 	push_error(error_message)
-	# Most of the time API response contains an error info
-	# (See Http module to see how it's parsed)
-	if request.data.has("__message__"):
-		push_error("Message from API: `" + request.data["__message__"], '`')
+	# If error occured and response is a String, most likely 
+	# response is an error message
+	if request.data is String:
+		push_error("Message from API: `" + request.data, '`')
 	
 	var hint_message: String = ''
 	var hints: Array = custom_hints.get(request.error, [])

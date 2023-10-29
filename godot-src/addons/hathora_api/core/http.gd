@@ -9,7 +9,7 @@ static func init(request_node: HTTPRequest) -> void:
 ## with some other useful info
 class ResponseJson:
 	var url: String
-	var data: Dictionary
+	var data
 	var status_code: int = -1
 	var error_message: String = ''
 	var error
@@ -19,13 +19,13 @@ class ResponseJson:
 
 
 #region     -- GET/POST async
-static func get_async(url: String, headers: Array[String]) -> ResponseJson:
+static func get_async(url: String, headers: Array) -> ResponseJson:
 	var result: ResponseJson = get_sync(url, headers)
 	await result.request_completed
 	return result
 
 
-static func post_async(url: String, headers: Array[String], body: Dictionary) -> ResponseJson:
+static func post_async(url: String, headers: Array, body: Dictionary) -> ResponseJson:
 	var result: ResponseJson = post_sync(url, headers, body)
 	await result.request_completed
 	return result
@@ -33,7 +33,7 @@ static func post_async(url: String, headers: Array[String], body: Dictionary) ->
 
 
 #region     -- GET/POST sync
-static func get_sync(url: String, headers: Array[String]) -> ResponseJson:
+static func get_sync(url: String, headers: Array) -> ResponseJson:
 	assert(is_instance_valid(http_node), "ASSERT! Can't perform GET request without HTTPRequest node being passed to init() function")
 	
 	var response: ResponseJson = ResponseJson.new()
@@ -72,7 +72,7 @@ static func get_sync(url: String, headers: Array[String]) -> ResponseJson:
 	return response
 
 
-static func post_sync(url: String, headers: Array[String], body: Dictionary) -> ResponseJson:
+static func post_sync(url: String, headers: Array, body: Dictionary) -> ResponseJson:
 	assert(is_instance_valid(http_node), "ASSERT! Can't perform GET request without HTTPRequest node being passed to init() function")
 	
 	var response: ResponseJson = ResponseJson.new()
@@ -171,8 +171,7 @@ static func _map_error_to(response: ResponseJson, status_code: int, url: String)
 		response.error = Hathora.Error.Ok
 
 ## Attempts to parse json string, if error occurs returns default value
-## Note: If parsed data is just a string it returned as {"__message__": *string*}
-static func json_parse_or(raw_string: String, default_value: Dictionary) -> Dictionary:
+static func json_parse_or(raw_string: String, default_value: Dictionary):
 	# Note: Could have used JSON.parse_string(), but it doesn't return 
 	# a proper error message, making it harder to debug
 	var json: JSON = JSON.new()
@@ -184,7 +183,20 @@ static func json_parse_or(raw_string: String, default_value: Dictionary) -> Dict
 			" in `", raw_string, "` at line ", json.get_error_line()
 		)
 		return default_value
-	# Note: Most likely an error
-	if json.data is String:
-		return {"__message__": json.data}
+	
 	return json.data
+
+
+## Builds a query string like: `?param1=value1&param2=value2` based
+## on [param params]. Note: params with empty values will be ignored
+static func build_query_params(params: Dictionary) -> String:
+	var result: String = ''
+	
+	for key in params.keys():
+		var value = params[key]
+		
+		if value != '':
+			result += '?' if result == '' else '&'
+			result += key + '=' + value
+		
+	return result

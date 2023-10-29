@@ -1,6 +1,6 @@
-# App V1
-const ResponseJson = preload("res://addons/hathora_api/core/http.gd").ResponseJson
+# AppV1
 const AuthConfiguration = preload("res://addons/hathora_api/api/common_types.gd").AuthConfiguration
+const ResponseJson = preload("res://addons/hathora_api/core/http.gd").ResponseJson
 
 
 ##region       -- create_app
