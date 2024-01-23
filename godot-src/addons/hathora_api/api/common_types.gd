@@ -105,3 +105,76 @@ class Room:
 		result.room_id = data["roomId"]
 		
 		return result
+
+
+# TODO: TYPES BELOW DECLARED AS DUMMY TYPES
+# (replace them with a real once later)
+class AuthConfiguration:
+	static func deserialize(data: Dictionary) -> AuthConfiguration:
+		# TODO: actual code here (generate it as well?)
+		return null
+
+class ApplicationWithDeployment:
+	static func deserialize(data: Dictionary) -> ApplicationWithDeployment:
+		# TODO: actual code here (generate it as well?)
+		return null
+
+class Invoice:
+	static func deserialize(data: Dictionary) -> Invoice:
+		# TODO: actual code here (generate it as well?)
+		return null
+
+class LinkPaymentMethod:
+	static func deserialize(data: Dictionary) -> LinkPaymentMethod:
+		# TODO: actual code here (generate it as well?)
+		return null
+
+class AchPaymentMethod:
+	static func deserialize(data: Dictionary) -> AchPaymentMethod:
+		# TODO: actual code here (generate it as well?)
+		return null
+
+class CardPaymentMethod:
+	static func deserialize(data: Dictionary) -> CardPaymentMethod:
+		# TODO: actual code here (generate it as well?)
+		return null
+
+class Build:
+	static func deserialize(data: Dictionary) -> Build:
+		# TODO: actual code here (generate it as well?)
+		return null
+
+class Deployment:
+	static func deserialize(data: Dictionary) -> Deployment:
+		# TODO: actual code here (generate it as well?)
+		return null
+
+class RoomWithoutAllocations:
+	static func deserialize(data: Dictionary) -> RoomWithoutAllocations:
+		# TODO: actual code here (generate it as well?)
+		return null
+
+class Process:
+	static func deserialize(data: Dictionary) -> Process:
+		# TODO: actual code here (generate it as well?)
+		return null
+
+class ProcessWithRooms:
+	static func deserialize(data: Dictionary) -> ProcessWithRooms:
+		# TODO: actual code here (generate it as well?)
+		return null
+
+class LobbyV3:
+	static func deserialize(data: Dictionary) -> LobbyV3:
+		# TODO: actual code here (generate it as well?)
+		return null
+
+class MetricValue:
+	static func deserialize(data: Dictionary) -> MetricValue:
+		# TODO: actual code here (generate it as well?)
+		return null
+
+class ContainerPort:
+	static func deserialize(data: Dictionary) -> ContainerPort:
+		# TODO: actual code here (generate it as well?)
+		return null

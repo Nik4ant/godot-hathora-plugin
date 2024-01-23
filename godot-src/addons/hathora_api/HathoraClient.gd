@@ -5,7 +5,7 @@ extends Node
 #region     -- Configuration
 @export var APP_ID: String = ''
 ## Is current instance running on the server OR on the client
-@export var is_client: bool = false
+@export var is_client: bool = true
 ## Dev token for Hathora API
 ## (Exists ONLY IF is_client is false, meaning it's server-side)
 @export var DEV_TOKEN: String = ''
@@ -13,7 +13,6 @@ var DEV_AUTH_HEADER: String
 #endregion  -- Configuration
 
 
-## Initiailizes
 func init(app_id: String, is_client: bool = true, dev_token: String = '') -> void:
 	if self.APP_ID != '':
 		push_warning("WARNING! Initializing HathoraClient more than once won't do anything")
@@ -28,11 +27,11 @@ func init(app_id: String, is_client: bool = true, dev_token: String = '') -> voi
 		self.DEV_TOKEN = dev_token
 		self.DEV_AUTH_HEADER = "Authorization: Bearer " + Hathora.DEV_TOKEN
 	elif dev_token != '':
-		push_warning("WARNING! Dev token will be ignored by the API because using Hathora Dev token on the client side is dangerous! See [to-do: link]")
+		push_error("WARNING! Dev token will be ignored by the API because using Hathora Dev token on the client side is dangerous! See [to-do: link]")
 	
-	push_warning("TESTING GENERATOR CODE, REMOVE THIS LATER!!!")
-	const test = preload("res://addons/hathora_api/generator/api_generator.gd")
-	test.generate_api()
+	# TODO: remove later
+	const CODE_GENERATION_TEST = preload("res://addons/hathora_api/generator/api_generator.gd")
+	CODE_GENERATION_TEST.generate_api()
 
 
 const Error := preload("res://addons/hathora_api/core/error.gd")

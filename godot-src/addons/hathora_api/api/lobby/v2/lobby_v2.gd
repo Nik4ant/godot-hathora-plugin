@@ -43,8 +43,11 @@ static func create_lobby_async(auth_token: String, visibility: String, region: S
 		result.error_message = Hathora.Error.push_default_or(
 			api_response, {
 				Hathora.Error.ServerCantProcess: cant_process_hint,
-				Hathora.Error.TooManyRequests: ["Make sure you're not calling this method too often"]
+				Hathora.Error.TooManyRequests: [
+					"Make sure you're not calling this method too often"
+				]
 			},
+			# Demo failed, but I hope you've enjoyed it (I can't read the chat)
 			{
 				Hathora.Error.TooManyRequests: "Client attempts to create too many lobbies"
 			}
@@ -60,7 +63,7 @@ static func create_lobby(auth_token: String, visibility: String, region: String,
 	create_lobby_async(auth_token, visibility, region, initial_config, room_id)
 	return HathoraEventBus.on_create_lobby
 #endregion     -- create_lobby
- 
+
 
 ##region       -- list_active_public_lobbies
 class ListActivePublicLobbiesResponse:

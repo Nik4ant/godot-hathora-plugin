@@ -20,7 +20,7 @@ func _on_btn_create_lobby():
 	
 	# Create lobby
 	var region: String = option_regions.get_item_text(option_regions.selected)
-	var create_response = await Hathora.Lobby.V2.create_lobby_async(
+	var create_response = await Hathora.Lobby.V3.create_lobby_async(
 		login_response.auth_token, "public", region
 	)
 	if create_response.error != Hathora.Error.Ok:
@@ -34,6 +34,6 @@ func _on_btn_create_lobby():
 	)
 
 	if connection.error != OK:
-		print(": ", create_response.error_message)
+		print("Connection error: ", create_response.error_message)
 		return
 	print(connection.exposed_port.host, ':', connection.exposed_port.port)

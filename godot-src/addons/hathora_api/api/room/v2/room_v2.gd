@@ -5,7 +5,7 @@ const ExposedPort = CommonTypes.ExposedPort
 const RoomAllocation = CommonTypes.RoomAllocation
 const Room = CommonTypes.Room
 
-##region   -- get_connection_info
+#region   -- get_connection_info
 class GetConnectionInfoResponse:
 	var additional_exposed_ports: Array[ExposedPort]
 	var exposed_port: ExposedPort
@@ -78,7 +78,7 @@ static func __get_connection_info_async(room_id: String) -> GetConnectionInfoRes
 	if api_response.error != Hathora.Error.Ok:
 		result.error_message = Hathora.Error.push_default_or(
 			api_response, {
-				Hathora.Error.ApiDontExists: ["Make sure room with id `" + room_id, "` exists"],
+				Hathora.Error.ApiDontExists: ["Make sure room with id `" + room_id + "` exists"],
 			}
 		)
 	else:
@@ -89,7 +89,7 @@ static func __get_connection_info_async(room_id: String) -> GetConnectionInfoRes
 #endregion -- get_connection_info
 
 
-##region   -- create_room
+#region   -- create_room
 class CreateRoomResponse:
 	var additional_exposed_ports: Array[ExposedPort]
 	var exposed_port: ExposedPort
@@ -158,7 +158,7 @@ static func create_room(region: String, room_config: Dictionary = {}) -> Signal:
 #endregion -- create_room
 
 
-##region   -- get_room_info
+#region   -- get_room_info
 class GetRoomInfoResponse:
 	var current_allocation: RoomAllocation
 	var status: String
@@ -220,7 +220,7 @@ static func get_room_info(room_id: String) -> Signal:
 #endregion -- get_room_info
 
 
-##region   -- get_active_rooms_for_process
+#region   -- get_active_rooms_for_process
 class GetActiveRoomsForProcessResponse:
 	var rooms: Array[Room] = []
 	
@@ -266,7 +266,7 @@ static func get_active_rooms_for_process(room_id: String) -> Signal:
 #endregion -- get_active_rooms_for_process
 
 
-##region   -- get_active_rooms_for_process
+#region   -- get_active_rooms_for_process
 class GetInactiveRoomsForProcessResponse:
 	var rooms: Array[Room] = []
 	
@@ -312,7 +312,7 @@ static func get_inactive_rooms_for_process(process_id: String) -> Signal:
 #endregion -- get_inactive_rooms_for_process
 
 
-##region   -- destroy_room
+#region   -- destroy_room
 class DestroyRoomResponse:
 	var error
 	var error_message: String
@@ -354,7 +354,7 @@ static func destroy_room(room_id: String) -> Signal:
 #endregion -- destroy_room
 
 
-##region   -- suspend_room
+#region   -- suspend_room
 class SuspendRoomResponse:
 	var error
 	var error_message: String
