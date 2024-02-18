@@ -1,5 +1,4 @@
 extends Node
-
 #region       -- Auth
 # V1
 signal on_login_anonymous(response)

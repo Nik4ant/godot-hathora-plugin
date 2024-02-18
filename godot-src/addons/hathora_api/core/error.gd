@@ -1,6 +1,3 @@
-# Note(Nik4ant): As much as I would love to use an enum here, I can't
-# (Get back to this message if there is a better design idea)
-
 # This way plugins' Ok code is the same as Godot's @GlobalScope.OK
 const Ok = OK
 ## Error occured, but its cause is unknown
@@ -46,7 +43,7 @@ const DEFAULT_HINTS: Dictionary = {
 	Unauthorized: [
 		"Make sure you're using correct auth/dev token",
 	],
-	# Note: Base url is always valid since it's defined on plugin side
+	# Note: Base url is always valid
 	ApiDontExists: [
 		"Make sure app with initialized APP_ID exists"
 	],
@@ -88,6 +85,8 @@ static func push_default_or(request: ResponseJson, custom_hints: Dictionary = {}
 	
 	if hint_message != '':
 		push_warning(hint_message)
-		print(hint_message)
+		# TODO: test print_rich
+		print_rich("[color=orange][b][/b]" + hint_message + "[/b][/color]")
+		print("--------\n[printing again in case styling can't be used]:\n--------", hint_message)
 	
 	return error_message

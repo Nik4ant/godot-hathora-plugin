@@ -10,7 +10,7 @@
 				"type": "string",
 				"example": "minecraft",
 				"description": "Readable name for an application. Must be unique within an organization.",
-				"maxLength": 32,
+				"maxLength": 64,
 				"pattern": "^[a-z0-9-]+$"
 			},
 			"AppId": {
@@ -257,8 +257,8 @@
 						"example": "dev@hathora.dev"
 					},
 					"requestedMemoryMB": {
-						"type": "number",
-						"format": "double",
+						"type": "integer",
+						"format": "int32",
 						"description": "The amount of memory allocated to your process.",
 						"example": 1024
 					},
@@ -327,6 +327,17 @@
 				"required": [
 					"authConfiguration",
 					"appName"
+				],
+				"type": "object"
+			},
+			"ApiError": {
+				"properties": {
+					"message": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"message"
 				],
 				"type": "object"
 			},
@@ -495,6 +506,7 @@
 				"type": "string",
 				"enum": [
 					"Seattle",
+					"Los_Angeles",
 					"Washington_DC",
 					"Chicago",
 					"London",
@@ -539,11 +551,11 @@
 							"type": "object"
 						},
 						"type": "array",
-						"description": "Identifiers for the containers stored in Hathora's registries."
+						"deprecated": true
 					},
 					"imageSize": {
-						"type": "number",
-						"format": "double",
+						"type": "integer",
+						"format": "int32",
 						"description": "The size (in bytes) of the Docker image built by Hathora."
 					},
 					"status": {
@@ -712,7 +724,7 @@
 			"RoomId": {
 				"type": "string",
 				"example": "2swovpy1fnunu",
-				"description": "Unique identifier to a game session or match. Use the default system generated ID or overwrite it with your own.",
+				"description": "Unique identifier to a game session or match. Use the default system generated ID or overwrite it with your own.\nNote: error will be returned if `roomId` is not globally unique.",
 				"minLength": 1,
 				"maxLength": 100,
 				"pattern": "^[a-zA-Z0-9_-]*$"
@@ -735,6 +747,7 @@
 			"ShortCode": {
 				"type": "string",
 				"example": "LFG4",
+				"description": "User-defined identifier for a lobby.",
 				"maxLength": 100
 			},
 			"Lobby": {
@@ -767,7 +780,6 @@
 					},
 					"local": {
 						"type": "boolean",
-						"example": "false",
 						"deprecated": true
 					},
 					"visibility": {
@@ -900,7 +912,6 @@
 				},
 				"required": [
 					"visibility",
-					"roomConfig",
 					"region"
 				],
 				"type": "object"
@@ -1029,8 +1040,8 @@
 						"$ref": "#/components/schemas/TransportType"
 					},
 					"port": {
-						"type": "number",
-						"format": "double"
+						"type": "integer",
+						"format": "int32"
 					},
 					"host": {
 						"type": "string"
@@ -1057,8 +1068,8 @@
 			"Process": {
 				"properties": {
 					"egressedBytes": {
-						"type": "number",
-						"format": "double",
+						"type": "integer",
+						"format": "int32",
 						"description": "Measures network traffic leaving the process in bytes.",
 						"example": 435
 					},
@@ -1074,18 +1085,19 @@
 						"deprecated": true
 					},
 					"activeConnections": {
-						"type": "number",
-						"format": "double",
+						"type": "integer",
+						"format": "int32",
 						"description": "Tracks the number of active connections to a process.",
-						"example": 10
+						"example": 10,
+						"deprecated": true
 					},
 					"roomsAllocatedUpdatedAt": {
 						"type": "string",
 						"format": "date-time"
 					},
 					"roomsAllocated": {
-						"type": "number",
-						"format": "double",
+						"type": "integer",
+						"format": "int32",
 						"description": "Tracks the number of rooms that have been allocated to the process.",
 						"example": 1
 					},
@@ -1297,8 +1309,8 @@
 								"type": "array"
 							},
 							"totalRooms": {
-								"type": "number",
-								"format": "double"
+								"type": "integer",
+								"format": "int32"
 							}
 						},
 						"required": [
@@ -1308,6 +1320,102 @@
 						"type": "object"
 					}
 				]
+			},
+			"ProcessStatus": {
+				"type": "string",
+				"enum": [
+					"starting",
+					"running",
+					"draining",
+					"stopping",
+					"stopped",
+					"failed"
+				]
+			},
+			"ProcessV2": {
+				"properties": {
+					"status": {
+						"$ref": "#/components/schemas/ProcessStatus",
+						"description": "Process in drain will not accept any new rooms."
+					},
+					"roomsAllocated": {
+						"type": "integer",
+						"format": "int32",
+						"description": "Tracks the number of rooms that have been allocated to the process.",
+						"example": 1
+					},
+					"terminatedAt": {
+						"type": "string",
+						"format": "date-time",
+						"nullable": true,
+						"description": "When the process has been terminated."
+					},
+					"stoppingAt": {
+						"type": "string",
+						"format": "date-time",
+						"nullable": true,
+						"description": "When the process is issued to stop. We use this to determine when we should stop billing."
+					},
+					"startedAt": {
+						"type": "string",
+						"format": "date-time",
+						"nullable": true,
+						"description": "When the process bound to the specified port. We use this to determine when we should start billing."
+					},
+					"createdAt": {
+						"type": "string",
+						"format": "date-time",
+						"description": "When the process started being provisioned."
+					},
+					"roomsPerProcess": {
+						"$ref": "#/components/schemas/NumRoomsPerProcess"
+					},
+					"additionalExposedPorts": {
+						"items": {
+							"$ref": "#/components/schemas/ExposedPort"
+						},
+						"type": "array",
+						"example": [
+							{
+								"host": "1.proxy.hathora.dev",
+								"name": "debug",
+								"port": 72941,
+								"transportType": "tcp"
+							}
+						],
+						"maxItems": 2
+					},
+					"exposedPort": {
+						"$ref": "#/components/schemas/ExposedPort"
+					},
+					"region": {
+						"$ref": "#/components/schemas/Region"
+					},
+					"processId": {
+						"$ref": "#/components/schemas/ProcessId"
+					},
+					"deploymentId": {
+						"$ref": "#/components/schemas/DeploymentId"
+					},
+					"appId": {
+						"$ref": "#/components/schemas/AppId"
+					}
+				},
+				"required": [
+					"status",
+					"roomsAllocated",
+					"terminatedAt",
+					"stoppingAt",
+					"startedAt",
+					"createdAt",
+					"roomsPerProcess",
+					"additionalExposedPorts",
+					"region",
+					"processId",
+					"deploymentId",
+					"appId"
+				],
+				"type": "object"
 			},
 			"CreateRoomParams": {
 				"properties": {
@@ -1471,6 +1579,24 @@
 				"type": "object",
 				"description": "Connection information for the default and additional ports."
 			},
+			"CreateRoomResponse": {
+				"allOf": [
+					{
+						"$ref": "#/components/schemas/ConnectionInfoV2"
+					},
+					{
+						"properties": {
+							"processId": {
+								"$ref": "#/components/schemas/ProcessId"
+							}
+						},
+						"required": [
+							"processId"
+						],
+						"type": "object"
+					}
+				]
+			},
 			"UpdateRoomConfigParams": {
 				"properties": {
 					"roomConfig": {
@@ -1553,7 +1679,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -1563,7 +1689,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -1610,7 +1736,17 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -1620,7 +1756,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -1676,7 +1812,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -1715,7 +1851,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -1725,7 +1861,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -1771,7 +1907,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -1813,7 +1949,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -1865,7 +2001,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -1875,7 +2011,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -1928,7 +2064,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -1964,7 +2100,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -1974,7 +2110,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -2010,7 +2146,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -2059,7 +2195,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -2098,7 +2234,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -2144,7 +2280,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -2198,7 +2334,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -2208,7 +2344,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -2265,7 +2401,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -2275,7 +2411,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -2341,7 +2477,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -2351,7 +2487,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -2361,7 +2497,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -2418,7 +2554,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -2464,7 +2600,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -2518,7 +2654,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -2528,7 +2664,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -2538,7 +2674,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -2625,7 +2761,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -2635,7 +2771,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -2645,7 +2781,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -2655,7 +2791,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -2665,7 +2801,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -2675,7 +2811,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -2738,7 +2874,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -2748,7 +2884,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -2758,7 +2894,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -2768,7 +2904,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -2778,7 +2914,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -2788,7 +2924,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -2854,7 +2990,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -2864,7 +3000,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -2923,7 +3059,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -2933,7 +3069,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -2943,7 +3079,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -2953,7 +3089,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -2963,7 +3099,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -2973,7 +3109,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -3049,7 +3185,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -3059,7 +3195,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -3069,7 +3205,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -3079,7 +3215,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -3089,7 +3225,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -3099,7 +3235,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -3175,7 +3311,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -3185,7 +3321,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -3195,7 +3331,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -3205,7 +3341,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -3215,7 +3351,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -3225,7 +3361,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -3301,7 +3437,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -3311,7 +3447,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -3321,7 +3457,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -3331,7 +3467,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -3341,7 +3477,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -3351,16 +3487,17 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
 					}
 				},
-				"description": "Create a new lobby for an [application](https://hathora.dev/docs/concepts/hathora-entities#application). A lobby object is a wrapper around a [room](https://hathora.dev/docs/concepts/hathora-entities#room) object. With a lobby, you get additional functionality like configuring the visibility of the room, managing the state of a match, and retreiving a list of public lobbies to display to players.",
+				"description": "Create a new lobby for an [application](https://hathora.dev/docs/concepts/hathora-entities#application). A lobby object is a wrapper around a [room](https://hathora.dev/docs/concepts/hathora-entities#room) object. With a lobby, you get additional functionality like configuring the visibility of the room, managing the state of a match, and retrieving a list of public lobbies to display to players.",
 				"tags": [
 					"LobbyV2"
 				],
+				"deprecated": true,
 				"security": [
 					{
 						"playerAuth": []
@@ -3418,6 +3555,7 @@
 				"tags": [
 					"LobbyV2"
 				],
+				"deprecated": true,
 				"security": [],
 				"parameters": [
 					{
@@ -3459,7 +3597,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -3469,6 +3607,7 @@
 				"tags": [
 					"LobbyV2"
 				],
+				"deprecated": true,
 				"security": [],
 				"parameters": [
 					{
@@ -3509,7 +3648,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -3519,7 +3658,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -3529,6 +3668,7 @@
 				"tags": [
 					"LobbyV2"
 				],
+				"deprecated": true,
 				"security": [
 					{
 						"hathoraDevToken": []
@@ -3583,7 +3723,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -3593,7 +3733,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -3603,7 +3743,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -3613,7 +3753,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -3623,7 +3763,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -3633,13 +3773,13 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
 					}
 				},
-				"description": "Create a new lobby for an [application](https://hathora.dev/docs/concepts/hathora-entities#application). A lobby object is a wrapper around a [room](https://hathora.dev/docs/concepts/hathora-entities#room) object. With a lobby, you get additional functionality like configuring the visibility of the room, managing the state of a match, and retreiving a list of public lobbies to display to players.",
+				"description": "Create a new lobby for an [application](https://hathora.dev/docs/concepts/hathora-entities#application). A lobby object is a wrapper around a [room](https://hathora.dev/docs/concepts/hathora-entities#room) object. With a lobby, you get additional functionality like configuring the visibility of the room, managing the state of a match, and retrieving a list of public lobbies to display to players.",
 				"tags": [
 					"LobbyV3"
 				],
@@ -3663,6 +3803,14 @@
 						"required": false,
 						"schema": {
 							"$ref": "#/components/schemas/ShortCode"
+						}
+					},
+					{
+						"in": "query",
+						"name": "roomId",
+						"required": false,
+						"schema": {
+							"$ref": "#/components/schemas/RoomId"
 						}
 					}
 				],
@@ -3741,7 +3889,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -3791,7 +3939,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -3842,7 +3990,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -3909,12 +4057,32 @@
 							}
 						}
 					},
+					"400": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiError"
+								}
+							}
+						}
+					},
 					"404": {
 						"description": "",
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
+								}
+							}
+						}
+					},
+					"410": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -3924,7 +4092,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -3975,6 +4143,91 @@
 				]
 			}
 		},
+		"/logs/v1/{appId}/process/{processId}/download": {
+			"get": {
+				"operationId": "DownloadLogForProcess",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"text/plain": {
+								"schema": {
+									"type": "string",
+									"format": "byte"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiError"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiError"
+								}
+							}
+						}
+					},
+					"410": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiError"
+								}
+							}
+						}
+					},
+					"500": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiError"
+								}
+							}
+						}
+					}
+				},
+				"description": "Download entire log file for a stopped process.",
+				"tags": [
+					"LogV1"
+				],
+				"security": [
+					{
+						"hathoraDevToken": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "appId",
+						"required": true,
+						"schema": {
+							"$ref": "#/components/schemas/AppId"
+						}
+					},
+					{
+						"in": "path",
+						"name": "processId",
+						"required": true,
+						"schema": {
+							"$ref": "#/components/schemas/ProcessId"
+						}
+					}
+				]
+			}
+		},
 		"/logs/v1/{appId}/deployment/{deploymentId}": {
 			"get": {
 				"operationId": "GetLogsForDeployment",
@@ -3995,7 +4248,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -4066,7 +4319,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -4108,7 +4361,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -4118,7 +4371,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -4128,7 +4381,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -4230,7 +4483,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -4240,6 +4493,7 @@
 				"tags": [
 					"ProcessesV1"
 				],
+				"deprecated": true,
 				"security": [
 					{
 						"hathoraDevToken": []
@@ -4287,7 +4541,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -4297,6 +4551,7 @@
 				"tags": [
 					"ProcessesV1"
 				],
+				"deprecated": true,
 				"security": [
 					{
 						"hathoraDevToken": []
@@ -4324,7 +4579,7 @@
 		},
 		"/processes/v1/{appId}/info/{processId}": {
 			"get": {
-				"operationId": "GetProcessInfo",
+				"operationId": "GetProcessInfoDeprecated",
 				"responses": {
 					"200": {
 						"description": "Ok",
@@ -4341,7 +4596,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -4351,7 +4606,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -4360,6 +4615,71 @@
 				"description": "Get details for a [process](https://hathora.dev/docs/concepts/hathora-entities#process).",
 				"tags": [
 					"ProcessesV1"
+				],
+				"deprecated": true,
+				"security": [
+					{
+						"hathoraDevToken": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "appId",
+						"required": true,
+						"schema": {
+							"$ref": "#/components/schemas/AppId"
+						}
+					},
+					{
+						"in": "path",
+						"name": "processId",
+						"required": true,
+						"schema": {
+							"$ref": "#/components/schemas/ProcessId"
+						}
+					}
+				]
+			}
+		},
+		"/processes/v2/{appId}/info/{processId}": {
+			"get": {
+				"operationId": "GetProcessInfo",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ProcessV2"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiError"
+								}
+							}
+						}
+					},
+					"500": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiError"
+								}
+							}
+						}
+					}
+				},
+				"description": "Get details for a [process](https://hathora.dev/docs/concepts/hathora-entities#process).",
+				"tags": [
+					"ProcessesV2"
 				],
 				"security": [
 					{
@@ -4386,6 +4706,77 @@
 				]
 			}
 		},
+		"/processes/v2/{appId}/list/latest": {
+			"get": {
+				"operationId": "GetLatestProcesses",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/ProcessV2"
+									},
+									"type": "array"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiError"
+								}
+							}
+						}
+					}
+				},
+				"description": "Retrieve the 10 most recent [processes](https://hathora.dev/docs/concepts/hathora-entities#process) objects for an [application](https://hathora.dev/docs/concepts/hathora-entities#application). Filter the array by optionally passing in a `status` or `region`.",
+				"tags": [
+					"ProcessesV2"
+				],
+				"security": [
+					{
+						"hathoraDevToken": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "appId",
+						"required": true,
+						"schema": {
+							"$ref": "#/components/schemas/AppId"
+						}
+					},
+					{
+						"in": "query",
+						"name": "status",
+						"required": false,
+						"schema": {
+							"type": "array",
+							"items": {
+								"$ref": "#/components/schemas/ProcessStatus"
+							}
+						}
+					},
+					{
+						"in": "query",
+						"name": "region",
+						"required": false,
+						"schema": {
+							"type": "array",
+							"items": {
+								"$ref": "#/components/schemas/Region"
+							}
+						}
+					}
+				]
+			}
+		},
 		"/rooms/v1/{appId}/create": {
 			"post": {
 				"operationId": "CreateRoomDeprecated",
@@ -4405,7 +4796,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -4415,7 +4806,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -4425,7 +4816,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -4435,7 +4826,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -4445,7 +4836,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -4509,7 +4900,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -4566,7 +4957,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -4623,7 +5014,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -4670,7 +5061,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -4680,7 +5071,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -4727,7 +5118,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -4737,7 +5128,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -4791,7 +5182,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -4801,7 +5192,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -4811,7 +5202,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -4851,7 +5242,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"$ref": "#/components/schemas/ConnectionInfoV2"
+									"$ref": "#/components/schemas/CreateRoomResponse"
 								}
 							}
 						}
@@ -4861,7 +5252,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -4871,7 +5262,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -4881,7 +5272,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -4891,7 +5282,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -4901,7 +5292,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -4965,7 +5356,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -5022,7 +5413,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -5079,7 +5470,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -5126,7 +5517,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -5136,7 +5527,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -5183,7 +5574,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -5193,7 +5584,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -5247,7 +5638,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -5257,7 +5648,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -5267,7 +5658,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -5310,7 +5701,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -5320,7 +5711,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"$ref": "#/components/schemas/ApiError"
 								}
 							}
 						}
@@ -5407,7 +5798,7 @@
 			"description": "Operations to get metrics by [process](https://hathora.dev/docs/concepts/hathora-entities#process). We store 72 hours of metrics data."
 		},
 		{
-			"name": "ProcessesV1",
+			"name": "ProcessesV2",
 			"description": "Operations to get data on active and stopped [processes](https://hathora.dev/docs/concepts/hathora-entities#process)."
 		},
 		{
@@ -5416,15 +5807,19 @@
 		},
 		{
 			"name": "LobbyV1",
-			"description": "Deprecated. Use LobbyV3."
+			"description": "Deprecated. Use [LobbyV3](https://hathora.dev/api#tag/LobbyV3)."
 		},
 		{
 			"name": "LobbyV2",
-			"description": "Deprecated. Use LobbyV3."
+			"description": "Deprecated. Use [LobbyV3](https://hathora.dev/api#tag/LobbyV3)."
+		},
+		{
+			"name": "ProcessesV1",
+			"description": "Deprecated. Use [ProcessesV2](https://hathora.dev/api#tag/ProcessesV2)."
 		},
 		{
 			"name": "RoomV1",
-			"description": "Deprecated. Use RoomV2."
+			"description": "Deprecated. Use [RoomV2](https://hathora.dev/api#tag/RoomV2)."
 		}
 	],
 	"x-speakeasy-globals": {

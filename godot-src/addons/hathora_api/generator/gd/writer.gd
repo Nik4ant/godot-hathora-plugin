@@ -1,259 +1,455 @@
 const Types = GD.Types
-const Primitives = GD.Primitives
 
 
-class CodeWriter:
-	var offset: int = 0
+class BaseContext:
 	var code: String = ''
-	var current_class: Primitives.Class = null
-	var current_func: Primitives.Function = null
+	var initial_offset: int = 0
+	var offset: int = 0
 	
-	func clear() -> void:
+	signal context_finished(old_context: BaseContext)
+	
+	func _init(initial_offset: int = 0, initial_code: String = '') -> void:
+		self.offset = initial_offset
+		self.initial_offset = initial_offset
+		self.code = initial_code
+		
+		context_finished.connect(__on_context_finished)
+	
+	func __on_context_finished(old_context: BaseContext) -> void:
+		code += old_context.code
+	
+	#region Basic
+	func clear() -> MainWriter:
 		self.offset = 0
 		self.code = ''
-		self.current_class = null
-		self.current_func = null
-	
-	func build(output_file_path: String = '') -> String:
-		if output_file_path != '':
-			var file = FileAccess.open(output_file_path, FileAccess.WRITE)
-			var error: Error = FileAccess.get_open_error()
-			if error != OK:
-				push_error(error_string(error))
-			else:
-				file.store_string(self.code)
-			
-			file.close()
-		
-		return self.code
+		return self
 	
 	func _offset() -> String:
 		return '\t'.repeat(self.offset)
 	
-	func comment(text: String, space_after_hashtag: bool = true, spaces_before_comment: int = 0) -> CodeWriter:
-		self.code += _offset() + ' '.repeat(spaces_before_comment) + '#'
-		
-		if space_after_hashtag:
-			self.code += ' '
-		self.code += text
-		
-		return self
+	func insert_eol(at: int) -> MainWriter:
+		return self.insert_codeline(at, '')
 	
-	func eol(use_offset: bool = false) -> CodeWriter:
+	func eol(use_offset: bool = false) -> MainWriter:
 		if use_offset:
-			self.code += _offset()
-		self.code += '\n'
-		return self
-	
-	func end_statement() -> CodeWriter:
-		self.offset -= 1
-		self.code += _offset() + '\n'
-		
-		return self
-	
-	func end_decl(add_newline: bool = true) -> CodeWriter:
-		self.offset -= 1
-		self.code += _offset() + '\n' if add_newline else ''
-		
-		if self.current_func != null:
-			self.current_func = null
-		elif self.current_class != null:
-			self.current_class = null
-		
-		return self
-	
-	func end_all() -> CodeWriter:
-		self.offset = 0
+			self.code += self._offset()
 		self.code += '\n'
 		
-		if self.current_func != null:
-			self.current_func = null
-		if self.current_class != null:
-			self.current_class = null
+		return self
+	
+	func comment(text: String, is_doc_comment: bool = false, use_offset: bool = true, spaces_after: int = 1, spaces_before: int = 0) -> MainWriter:
+		if use_offset:
+			self.code += self._offset()
+		
+		self.code += ' '.repeat(spaces_before) + '#'
+		if is_doc_comment:
+			self.code += '#'
+		
+		self.code += ' '.repeat(spaces_after) + text
 		
 		return self
 	
-	func expr(expression: String) -> CodeWriter:
-		self.code += expression
-		return self
-	
-	func array_expr(values_expressions: Array[String], use_newlines: bool = false) -> CodeWriter:
-		self.code += _offset() + '['
-		
-		if use_newlines:
-			self.offset += 1
+	func codeline(line: String, use_eol: bool = true) -> MainWriter:
+		self.code += self._offset() + line
+		if use_eol:
 			self.code += '\n'
-			for value in values_expressions:
-				self.code += _offset() + value + ",\n"
-			self.code = self.code.trim_suffix(",\n")
-		else:
-			for value in values_expressions:
-				self.code += value + ", "
-			self.code = self.code.trim_suffix(", ")
 		
-		self.code += ']'
 		return self
 	
-	func dict_expr(expressions: Dictionary, use_newlines: bool = false, extra_content_offset: int = 0) -> CodeWriter:
-		self.offset += extra_content_offset
-		self.code += _offset() + '{'
+	func insert_codeline(at: int, line: String) -> MainWriter:
+		assert(at <= self.code.countn('\n'), "Line with index `" + str(at) + "` doesn't exist")
 		
-		if use_newlines:
-			self.offset += 1
-			self.code += '\n'
-			for key_expr in expressions.keys():
-				self.code += _offset() + key_expr + ": " + expressions[key_expr] + ",\n"
-			self.code = self.code.trim_suffix(",\n")
-			self.offset -= 1
-			self.code += '\n'
-		else:
-			for key_expr in expressions.keys():
-				self.code += key_expr + ": " + expressions[key_expr] + ", "
-			self.code = self.code.trim_suffix(", ")
-		
-		self.code += _offset() + '}'
-		self.offset -= extra_content_offset
-		return self
-	
-	func codeline(line: String) -> CodeWriter:
-		self.code += _offset() + line + '\n'
-		return self
-	
-	func insert_codeline(line_index: int, line: String) -> CodeWriter:
-		assert(line_index < self.code.countn('\n'))
-		
-		var index: int = -1
-		for i in range(line_index):
+		var index: int = 0
+		for i in range(at):
 			index = self.code.findn('\n', index + 1)
 		
 		self.code = self.code.insert(index, '\n' + line)
 		return self
+	#endregion
 	
-	func variable(gd_var: Primitives.Variable) -> CodeWriter:
-		self.code += _offset()
+	#region Calls
+	func _func_call_str(target: Types.GodotFunction, args: Array[Types.TypedExpr], preffix: String = '') -> String:
+		var result: String = preffix
 		
-		if gd_var.is_static:
-			self.code += "static "
-		else:
-			self.code += "const " if gd_var.is_const else "var "
+		if target.is_async:
+			result += "await "
+		result += target.name + '('
 		
-		self.code += gd_var.name
+		for i: int in range(args.size()):
+			assert(
+				target.args[i].type.equals(args[i].type), 
+				"Argument `" + str(args[i]) + "` doesn't match the type " + str(target.args[i].type)
+			)
+			result += args[i].expr + ", "
 		
-		if Types.GodotType._is_static(gd_var.type):
-			self.code += ": " + gd_var.type.build()
-		# value
-		if gd_var.value_expr != '':
-			self.code += " = " + gd_var.value_expr
-		
-		return self
+		return result.trim_suffix(", ") + ")"
 	
-	static func _function(offset: int, function: Primitives.Function) -> String:
-		var result: String = ''
-		result += '\t'.repeat(offset)
-		# [static] func name(
-		if function.is_static:
-			result += "static "
-		result += "func " + function.name + '('
-		# [args]
-		for arg in function.args:
-			result += arg.name
-			if arg.type != Types.Dynamic:
-				result += ": " + arg.type.build()
-			if not arg.required:
-				result += " = " + arg.default_expr
-			result += ", "
-		result = result.trim_suffix(", ")
-		# ) -> [return_type]
-		result += ')'
-		if function.return_type != Types.Dynamic:
-			result += " -> " + function.return_type.build()
-		result += ":\n"
-		return result
-	
-	func func_decl(name: String, return_type: Types.GodotType = Types.Void, 
-			args: Array[Primitives.FuncArg] = [], is_static: bool = false, is_async: bool = false) -> CodeWriter:
-		self.current_func = Primitives.Function.create(
-			name, return_type, args, is_static, is_async
-		)
-		self.code += _function(self.offset, self.current_func)
-		self.offset += 1
+	## unsafe - doesn't check type signature and if function/method exists
+	func call_unsafe(call_name_expression: String, args_expressions: Array[String], is_async: bool = false, use_offset: bool = false, use_eol: bool = false, eol_every_item: bool = false) -> MainWriter:
+		if use_offset:
+			self.code += self._offset()
 		
-		return self
-
-	func func_call(function: Primitives.Function, args_exprs: Array[String], use_await: bool = false) -> CodeWriter:
-		self.code += _offset()
-		
-		if use_await:
+		if is_async:
 			self.code += "await "
+		self.code += call_name_expression + '('
 		
-		self.code += function.name + '('
-		for param in args_exprs:
-			self.code += param + ", "
-		self.code = self.code.trim_suffix(", ") + ')'
+		for expression: String in args_expressions:
+			if eol_every_item:
+				self.code += '\t' + expression + ", " + "\n\t"
+			else:
+				self.code += expression + ", "
+		
+		self.code = code.trim_suffix("\n\t").trim_suffix(", ") + ")"
+		
+		if use_eol:
+			self.code += '\n'
 		
 		return self
 	
-	func class_decl(cls_name: String) -> CodeWriter:
-		self.current_class = Primitives.Class.create(cls_name)
-		# class decl
-		self.code += str(_offset(), "class ", cls_name, ":\n")
+	func call_direct(function: Types.GodotFunction, args: Array[Types.TypedExpr] = [], use_offset: bool = false, use_eol: bool = false) -> MainWriter:
+		if use_offset:
+			self.code += self._offset()
+		self.code += _func_call_str(function, args)
+		if use_eol:
+			self.code += '\n'
+		
+		return self
+	#endregion
+	
+	#region Expressions
+	func raw_expr(expression: String, use_offset: bool = false) -> MainWriter:
+		if use_offset:
+			self.code += _offset()
+		self.code += expression
+		return self
+	
+	func expr(expression: Types.TypedExpr) -> MainWriter:
+		self.code += expression.value
+		return self
+	
+	func arr_expr(values: Array[String], eol_every_item: bool = false, use_offset: bool = false) -> MainWriter:
+		if use_offset:
+			self.code += self._offset()
+		
+		self.code += '['
+		if eol_every_item:
+			self.code += "\n\t"
+		for value: String in values:
+			if eol_every_item:
+				self.code += self._offset() + '\t' + value + ", " + "\n\t"
+			else:
+				self.code += value + ", "
+		
+		if eol_every_item:
+			self.code = self.code.trim_suffix('\t')
+		self.code = self.code.trim_suffix(", ") + ']'
+		
+		return self
+	
+	func dict_expr(expressions: Dictionary, eol_every_item: bool = true, use_offset: bool = false) -> MainWriter:
+		if use_offset:
+			self.code += self._offset()
+		
+		if eol_every_item:
+			self.code += '\t'
+		self.code += '{'
+		
+		if eol_every_item:
+			self.code += "\n\t"
+		
+		for key: String in expressions.keys():
+			var value: String = expressions[key]
+			
+			if eol_every_item:
+				self.code += self._offset() + '\t' + key + ": " + value + ",\n\t"
+			else:
+				self.code += key + ": " + value + ", "
+		
+		if eol_every_item:
+			self.code += self._offset()
+		else:
+			self.code = self.code.trim_suffix(", ")
+		
+		self.code += '}'
+		
+		return self
+	#endregion
+
+
+class MainWriter extends BaseContext:
+	## All classes available in the current context
+	## name: String; cls: Types.GodotClass
+	var classes: Dictionary = {}
+	var cur_class: Types.GodotClass = null
+	## All functions available in the current context
+	## name: String; function: Types.GodotFunction
+	var functions: Dictionary = {}
+	var cur_func: Types.GodotFunction = null
+	
+	#region Primitives (If/For/While/...)
+	func if_(condition: String) -> MainWriter:
+		self.code += _offset() + "if " + condition + ':'
 		self.offset += 1
 		return self
 	
-	func add_field(name: String, type: Types.GodotType = Types.Dynamic, value_expression: String = '', is_static: bool = false) -> CodeWriter:
-		assert(self.current_class != null, "Can't add field - define a class first!")
+	func else_() -> MainWriter:
+		self.offset -= 1
+		self.code += _offset() + "else:"
+		self.offset += 1
+		return self
+	
+	## By default item type is defined by [param target] subtype, but
+	## [param specific_item_type] is used instead if exists
+	func for_in(item_name: String, target: Types.TypedExpr, specific_item_type: Types.GodotType = null) -> MainWriter:
+		self.code += _offset() + "for " + item_name + ": "
 		
-		var new_field = Primitives.Field.create(name, type, value_expression, is_static)
-		self.current_class.add_field(
-			new_field
+		if specific_item_type != null:
+			self.code += str(specific_item_type)
+		else:
+			if target.type.id == Types.Id.Array:
+				assert(target.type.sub_type_value != null, "For loop can't iterate type `" + str(target.type) + '`')
+				self.code += str(target.type.sub_type_value)
+			else:
+				assert(target.type.sub_type_key != null, "For loop can't iterate type `" + str(target.type) + '`')
+				self.code += str(target.type.sub_type_key)
+		
+		self.code += " in " + target.value + ':'
+		self.offset += 1
+		
+		return self
+	
+	func for_range(item_name: String, stop: Types.TypedExpr, start: Types.TypedExpr = null, step: Types.TypedExpr = null) -> MainWriter:
+		assert(
+			start.type.id == Types.Id.Int and stop.type.id == Types.Id.Int and step.type.id == Types.Id.Int, 
+			"range(start, stop, step) accepts only integers!"
+		)
+		var expr: String = "range("
+		if start != null:
+			expr += start.value + ", "
+		expr += stop.value
+		if step != null:
+			expr += ", " + step.value
+		expr += ')'
+		
+		return for_in(item_name, Types.TypedExpr.new(expr, Types.array(Types.Int)))
+	
+	## Ends current block and goes to a new line
+	func end() -> MainWriter:
+		self.offset -= 1
+		return self
+	#endregion
+	
+	#region Class
+	func add_class(cls_name: String) -> MainWriter:
+		assert(!self.classes.has(cls_name), "Class with name: `" + cls_name + "` already exists")
+		var cls = Types.GodotClass.new(cls_name)
+		self.classes[cls_name] = cls
+		self.cur_class = cls
+		
+		self.code += self._offset() + "class " + cls_name + ":\n"
+		self.offset += 1
+		
+		return self
+	
+	func add_field(field: Types.GodotVariable) -> MainWriter:
+		assert(self.cur_class != null and self.cur_func == null, "Can't add field in the current context")
+		self.cur_class.add_property(field)
+		self.code += self._offset() + str(field) + '\n'
+		
+		return self
+	
+	func add_method(function: Types.GodotFunction) -> MainWriter:
+		assert(self.cur_class != null, "Can't add a method without a class!")
+		self.cur_class.add_method(function)
+		
+		self.code += self._offset() + str(function) + '\n'
+		self.offset += 1
+		
+		return self
+	
+	func end_class() -> MainWriter:
+		self.cur_class = null
+		self.offset -= 1
+		return self
+	
+	func end_method() -> MainWriter:
+		return end_func()
+	#endregion
+	
+	#region Functions
+	## Adds [param other_function] to the [member functions] without
+	## inserting any code to the writer
+	func add_func_reference(other_function: Types.GodotFunction) -> MainWriter:
+		assert(!self.functions.has(other_function.name), "Function with name: `" + other_function.name + "` already exists")
+		self.functions[other_function.name] = other_function
+		return self
+	
+	func add_function(function: Types.GodotFunction) -> MainWriter:
+		assert(!self.functions.has(function.name), "Function with name: `" + function.name + "` already exists")
+		self.functions[function.name] = function
+		self.cur_func = function
+		
+		self.code += self._offset() + str(function) + '\n'
+		self.offset += 1
+		
+		return self
+	
+	func end_func() -> MainWriter:
+		self.cur_func = null
+		self.offset -= 1
+		return self
+	#endregion
+	
+	#region Other
+	func add_var(variable: Types.GodotVariable, use_eol: bool = false) -> MainWriter:
+		self.code += self._offset() + str(variable)
+		if use_eol:
+			self.code += '\n'
+		
+		return self
+	#endregion
+	
+	#region Calls
+	func call_name(func_name: String, args: Array[Types.TypedExpr] = [], use_offset: bool = false, use_eol: bool = false) -> MainWriter:
+		assert(self.functions.has(func_name), "Function `" + func_name + "` doesn't exist")
+		var target: Types.GodotFunction = self.functions[func_name]
+		
+		if use_offset:
+			self.code += self._offset()
+		self.code += _func_call_str(target, args)
+		if use_eol:
+			self.code += '\n'
+		
+		return self
+	
+	func call_method(object: Types.TypedExpr, method_name: String, args: Array[Types.TypedExpr] = [], use_offset: bool = true, use_eol: bool = true) -> MainWriter:
+		assert(object.type.functions.has(method_name), "Specified object doesn't have method named `" + method_name + '`')
+		var method: Types.GodotFunction = object.type.functions[method_name]
+		
+		if use_offset:
+			self.code += self._offset()
+		
+		self.code += _func_call_str(method, args, object.value + '.')
+		
+		if use_eol:
+			self.code += '\n'
+		
+		return self
+	#endregion
+	
+	func finish(output_file_path: String = '') -> String:
+		if output_file_path == '':
+			return self.code
+		
+		DirAccess.make_dir_recursive_absolute(
+			output_file_path.substr(0, output_file_path.rfind('/'))
 		)
 		
-		self.code += '\t'.repeat(self.offset)
-		if is_static:
-			self.code += "static "
+		var file = FileAccess.open(output_file_path, FileAccess.WRITE)
+		var error: Error = FileAccess.get_open_error()
+		if error != OK:
+			push_error(error_string(error))
+		else:
+			file.store_string(self.code)
 		
-		self.code += "var " + new_field.name
+		file.close()
 		
-		if type != Types.Dynamic:
-			self.code += ": " + type.build()
-		
-		if value_expression != '':
-			self.code += " = " + value_expression
-		
-		self.code += '\n'
+		return self.code
+
+
+# NOTE: Context specific writer was scrapped
+#region Unused-contexts
+class ConditionContext:
+	var from: MainWriter
+	var code: String = ''
+	
+	func _init(old_context: MainWriter) -> void:
+		self.from = from
+	
+	func expr(expr: String) -> ConditionContext:
+		code += expr
 		return self
 	
-	func add_method(name: String, return_type: Types.GodotType = Types.Void, args: Array[Primitives.FuncArg] = [],
-			is_static: bool = false, is_async: bool = false) -> CodeWriter:
-		assert(self.current_class != null, "Can't add method - define a class first!")
-		var new_method: Primitives.Function = Primitives.Function.create(
-			name, return_type, args, is_static, is_async
-		)
-		self.current_class.add_method(new_method)
-		
-		self.code += CodeWriter._function(self.offset, new_method)
-		self.offset += 1
-		
+	func done() -> MainWriter:
+		from.context_finished.emit(self)
+		return from
+	
+	func is_(other: String) -> ConditionContext:
+		code += " is " + other
 		return self
 	
-	func if_statement(condition_expr: String) -> CodeWriter:
-		self.code += _offset() + "if " + condition_expr + ":\n"
-		self.offset += 1
+	#region logical ops
+	func and_() -> ConditionContext:
+		code += " and "
 		return self
 	
-	func elif_statement(condition_expr: String) -> CodeWriter:
-		self.offset -= 1
-		self.code += _offset() + "elif " + condition_expr + ":\n"
-		self.offset += 1
+	func or_() -> ConditionContext:
+		code += " or "
 		return self
 	
-	func else_statement() -> CodeWriter:
-		self.offset -= 1
-		self.code += _offset() + "else:\n"
-		self.offset += 1
+	func not_() -> ConditionContext:
+		code += " not "
+		return self
+	#endregion
+	
+	#region bool ops
+	## not equals !=
+	func ne(other: String) -> ConditionContext:
+		code += " != " + other
 		return self
 	
-	func for_statement(inner_var_expr: String, iter_expr: String) -> CodeWriter:
-		self.code += _offset() + "for " + inner_var_expr + " in " + iter_expr + ":\n"
-		self.offset += 1
+	## equals ==
+	func eq(other: String) -> ConditionContext:
+		code += " == " + other
 		return self
+	
+	## greater than >
+	func gt(other: String) -> ConditionContext:
+		code += " > " + other
+		return self
+	
+	## less than <
+	func lt(other: String) -> ConditionContext:
+		code += " < " + other
+		return self
+	
+	## greater or equals >=
+	func ge(other: String) -> ConditionContext:
+		code += " >= " + other
+		return self
+	
+	## less or equals <=
+	func le(other: String) -> ConditionContext:
+		code += " <= " + other
+		return self
+	#endregion
+
+
+class VarContext:
+	var from: MainWriter
+	var code: String = ''
+	var var_: Types.GodotVariable = null
+	
+	func _init(name: String, from_context: MainWriter = null) -> void:
+		self.var_ = Types.GodotVariable.new(name)
+	
+	func static_() -> VarContext:
+		var_.is_static = true
+		return self
+	
+	func const_() -> VarContext:
+		var_.is_const = true
+		return self
+	
+	func type(type: Types.GodotType) -> VarContext:
+		var_.type = type
+		return self
+	
+	func value(value: String) -> MainWriter:
+		var_.value = value
+		code = value
+		return from
+	
+	func to() -> Types.GodotVariable:
+		return var_
+#endregion

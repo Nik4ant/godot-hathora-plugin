@@ -10,7 +10,7 @@ func _ready() -> void:
 	btn_create_lobby.pressed.connect(_on_btn_create_lobby)
 
 
-func _on_btn_create_lobby():
+func _on_btn_create_lobby() -> void:
 	# Get auth token
 	var login_response = await Hathora.Auth.V1.login_anonymous_async()
 	if login_response.error != Hathora.Error.Ok:
@@ -29,7 +29,7 @@ func _on_btn_create_lobby():
 	print("Room id: ", create_response.lobby.room_id)
 	
 	# Get connection details
-	var connection = await Hathora.Room.V2.get_connection_info_async(
+	var connection := await Hathora.Room.V2.get_connection_info_async(
 		create_response.lobby.room_id
 	)
 

@@ -55,13 +55,13 @@ static func create_lobby_async(auth_token: String, visibility: String, region: S
 	else:
 		result.deserialize(api_response.data)
 	
-	HathoraEventBus.on_create_lobby.emit(result)
+	Hathora.EventBus.on_create_lobby.emit(result)
 	return result
 
 
 static func create_lobby(auth_token: String, visibility: String, region: String, initial_config: Dictionary = {}, room_id: String = '') -> Signal:
 	create_lobby_async(auth_token, visibility, region, initial_config, room_id)
-	return HathoraEventBus.on_create_lobby
+	return Hathora.EventBus.on_create_lobby
 #endregion     -- create_lobby
 
 
@@ -96,13 +96,13 @@ static func list_active_public_lobbies_async(region: String = '') -> ListActiveP
 	else:
 		result.deserialize(api_response.data)
 	
-	HathoraEventBus.on_list_active_public_lobbies.emit(result)
+	Hathora.EventBus.on_list_active_public_lobbies.emit(result)
 	return result
 
 
 static func list_active_public_lobbies(region: String = '') -> Signal:
 	list_active_public_lobbies_async(region)
-	return HathoraEventBus.on_list_active_public_lobbies
+	return Hathora.EventBus.on_list_active_public_lobbies
 ##endregion    -- list_active_public_lobbies
 
 
@@ -137,13 +137,13 @@ static func get_lobby_info_async(room_id: String) -> GetLobbyInfoResponse:
 	else:
 		result.deserialize(api_response.data)
 	
-	HathoraEventBus.on_get_lobby_info.emit(result)
+	Hathora.EventBus.on_get_lobby_info.emit(result)
 	return result
 
 
 static func get_lobby_info(room_id: String) -> Signal:
 	get_lobby_info_async(room_id)
-	return HathoraEventBus.on_get_lobby_info
+	return Hathora.EventBus.on_get_lobby_info
 ##endregion    -- get_lobby_info
 
 
@@ -180,11 +180,11 @@ static func set_lobby_state_async(room_id: String, state: Dictionary) -> SetLobb
 	else:
 		result.deserialize(api_response.data)
 	
-	HathoraEventBus.on_set_lobby_state.emit(result)
+	Hathora.EventBus.on_set_lobby_state.emit(result)
 	return result
 
 
 static func set_lobby_state(room_id: String, state: Dictionary) -> Signal:
 	set_lobby_state_async(room_id, state)
-	return HathoraEventBus.on_set_lobby_state
+	return Hathora.EventBus.on_set_lobby_state
 ##endregion    -- set_lobby_state
