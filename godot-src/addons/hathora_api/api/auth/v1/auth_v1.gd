@@ -21,19 +21,19 @@ static func login_anonymous_async() -> LoginAnonymousResponse:
 		url, ["Content-Type: application/json"], {}
 	)
 	# Api errors
-	result.error = api_response.error	
+	result.error = api_response.error
 	if api_response.error != Hathora.Error.Ok:
 		result.error_message = Hathora.Error.push_default_or(api_response)
 	else:
 		result.deserialize(api_response.data)
 	
-	HathoraEventBus.on_login_anonymous.emit(result)
+	Hathora.EventBus.on_login_anonymous.emit(result)
 	return result
 
 
 static func login_anonymous() -> Signal:
 	login_anonymous_async()
-	return HathoraEventBus.on_login_anonymous
+	return Hathora.EventBus.on_login_anonymous
 ##endregion  -- login_anonymous
 
 
@@ -65,13 +65,13 @@ static func login_nickname_async(nickname: String) -> LoginNicknameResponse:
 	else:
 		result.deserialize(api_response.data)
 	
-	HathoraEventBus.on_login_nickname.emit(result)
+	Hathora.EventBus.on_login_nickname.emit(result)
 	return result
 
 
 static func login_nickname(nickname: String) -> Signal:
 	login_nickname_async(nickname)
-	return HathoraEventBus.on_login_nickname
+	return Hathora.EventBus.on_login_nickname
 ##endregion  -- login_nickname
 
 
@@ -107,11 +107,11 @@ static func login_google_async(id_token: String) -> LoginGoogleResponse:
 	else:
 		result.deserialize(api_response.data)
 	
-	HathoraEventBus.on_login_google.emit(result)
+	Hathora.EventBus.on_login_google.emit(result)
 	return result
 
 
 static func login_google(id_token: String) -> Signal:
 	login_google_async(id_token)
-	return HathoraEventBus.on_login_google
+	return Hathora.EventBus.on_login_google
 ##endregion  -- login_google

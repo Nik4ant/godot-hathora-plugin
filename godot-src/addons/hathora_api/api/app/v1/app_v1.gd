@@ -73,11 +73,11 @@ func create_app_async(auth_configuration: Dictionary, app_name: String) -> Creat
 	else:
 		result.deserialize(api_response.data)
 	
-	HathoraEventBus.on_create_app.emit(result)
+	Hathora.EventBus.on_create_app.emit(result)
 	return result
 
 
 func create_app(auth_configuration: Dictionary, app_name: String) -> Signal:
 	create_app_async(auth_configuration, app_name)
-	return HathoraEventBus.on_create_app
+	return Hathora.EventBus.on_create_app
 ##endregion    -- create_app

@@ -78,3 +78,7 @@ func assert_is_server() -> bool:
 	assert(Hathora.is_client, "ASSERT! This api MUST be called only by server")
 	assert(Hathora.DEV_TOKEN != '', "ASSER! Hathora MUST have a valid DEV token. See init() function")
 	return true
+
+
+class EventBus2:
+	signal help(response: int)

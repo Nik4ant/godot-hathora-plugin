@@ -81,13 +81,13 @@ static func create_lobby_async(auth_token: String, visibility: String, region: S
 	else:
 		result.deserialize(api_response.data)
 	
-	HathoraEventBus.on_create_lobby.emit(result)
+	Hathora.EventBus.on_create_lobby.emit(result)
 	return result
 
 
 static func create_lobby(auth_token: String, visibility: String, region: String, room_config: String = '', short_code: String = '', room_id: String = '') -> Signal:
 	create_lobby_async(auth_token, visibility, region, room_config, short_code, room_id)
-	return HathoraEventBus.on_create_lobby
+	return Hathora.EventBus.on_create_lobby
 #endregion    -- create_lobby
 
 
@@ -157,13 +157,13 @@ func get_lobby_info_by_room_id_async(room_id: String) -> GetLobbyInfoByRoomIdRes
 	else:
 		result.deserialize(api_response.data)
 	
-	HathoraEventBus.on_get_lobby_info_by_room_id.emit(result)
+	Hathora.EventBus.on_get_lobby_info_by_room_id.emit(result)
 	return result
 
 
 func get_lobby_info_by_room_id(room_id: String) -> Signal:
 	get_lobby_info_by_room_id_async(room_id)
-	return HathoraEventBus.on_get_lobby_info_by_room_id
+	return Hathora.EventBus.on_get_lobby_info_by_room_id
 #endregion    -- get_lobby_info_by_room_id
 
 
@@ -233,13 +233,13 @@ func get_lobby_info_by_short_code_async(short_code: String) -> GetLobbyInfoBySho
 	else:
 		result.deserialize(api_response.data)
 	
-	HathoraEventBus.on_get_lobby_info_by_short_code.emit(result)
+	Hathora.EventBus.on_get_lobby_info_by_short_code.emit(result)
 	return result
 
 
 func get_lobby_info_by_short_code(short_code: String) -> Signal:
 	get_lobby_info_by_short_code_async(short_code)
-	return HathoraEventBus.on_get_lobby_info_by_short_code
+	return Hathora.EventBus.on_get_lobby_info_by_short_code
 #endregion    -- get_lobby_info_by_short_code
 
 
@@ -286,11 +286,11 @@ func list_active_public_lobbies_async(region: String = '') -> ListActivePublicLo
 	else:
 		result.deserialize(api_response.data)
 	
-	HathoraEventBus.on_list_active_public_lobbies.emit(result)
+	Hathora.EventBus.on_list_active_public_lobbies.emit(result)
 	return result
 
 
 func list_active_public_lobbies(region: String = '') -> Signal:
 	list_active_public_lobbies_async(region)
-	return HathoraEventBus.on_list_active_public_lobbies
+	return Hathora.EventBus.on_list_active_public_lobbies
 #endregion    -- list_active_public_lobbies

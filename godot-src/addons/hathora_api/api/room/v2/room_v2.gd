@@ -49,7 +49,7 @@ static func get_connection_info_async(room_id: String, wait_until_active: bool =
 		if result.error != Hathora.Error.Ok:
 			break
 	
-	HathoraEventBus.on_get_connection_info.emit(result)
+	Hathora.EventBus.on_get_connection_info.emit(result)
 	return result
 
 
@@ -59,7 +59,7 @@ static func get_connection_info_async(room_id: String, wait_until_active: bool =
 ## ([param retry_delay] - delay between API calls in seconds)
 static func get_connection_info(room_id: String, wait_until_active: bool = true, retry_delay: float = 1.5) -> Signal:
 	get_connection_info_async(room_id, wait_until_active, retry_delay)
-	return HathoraEventBus.on_get_connection_info
+	return Hathora.EventBus.on_get_connection_info
 
 
 ## TODO: explain. TL;DR - this is an internal function that should never be used
@@ -84,7 +84,7 @@ static func __get_connection_info_async(room_id: String) -> GetConnectionInfoRes
 	else:
 		result.deserialize(api_response.data)
 	
-	HathoraEventBus._internal_get_connection_info.emit(result)
+	Hathora.EventBus._internal_get_connection_info.emit(result)
 	return result
 #endregion -- get_connection_info
 
@@ -148,13 +148,13 @@ static func create_room_async(region: String, room_config: Dictionary = {}) -> C
 	else:
 		result.deserialize(api_response.data)
 	
-	HathoraEventBus.on_create_room.emit(result)
+	Hathora.EventBus.on_create_room.emit(result)
 	return result
 
 
 static func create_room(region: String, room_config: Dictionary = {}) -> Signal:
 	create_room_async(region, room_config)
-	return HathoraEventBus.on_create_room
+	return Hathora.EventBus.on_create_room
 #endregion -- create_room
 
 
@@ -210,13 +210,13 @@ static func get_room_info_async(room_id: String) -> GetRoomInfoResponse:
 	else:
 		result.deserialize(api_response.data)
 	
-	HathoraEventBus.on_get_room_info.emit(result)
+	Hathora.EventBus.on_get_room_info.emit(result)
 	return result
 
 
 static func get_room_info(room_id: String) -> Signal:
 	get_room_info_async(room_id)
-	return HathoraEventBus.on_get_room_info
+	return Hathora.EventBus.on_get_room_info
 #endregion -- get_room_info
 
 
@@ -256,13 +256,13 @@ static func get_active_rooms_for_process_async(process_id: String) -> GetActiveR
 	else:
 		result.deserialize(api_response.data)
 	
-	HathoraEventBus.on_get_active_rooms_for_process.emit(result)
+	Hathora.EventBus.on_get_active_rooms_for_process.emit(result)
 	return result
 
 
 static func get_active_rooms_for_process(room_id: String) -> Signal:
 	get_active_rooms_for_process_async(room_id)
-	return HathoraEventBus.on_get_active_rooms_for_process
+	return Hathora.EventBus.on_get_active_rooms_for_process
 #endregion -- get_active_rooms_for_process
 
 
@@ -302,13 +302,13 @@ static func get_inactive_rooms_for_process_async(process_id: String) -> GetInact
 	else:
 		result.deserialize(api_response.data)
 	
-	HathoraEventBus.on_get_inactive_rooms_for_process.emit(result)
+	Hathora.EventBus.on_get_inactive_rooms_for_process.emit(result)
 	return result
 
 
 static func get_inactive_rooms_for_process(process_id: String) -> Signal:
 	get_inactive_rooms_for_process_async(process_id)
-	return HathoraEventBus.on_get_inactive_rooms_for_process
+	return Hathora.EventBus.on_get_inactive_rooms_for_process
 #endregion -- get_inactive_rooms_for_process
 
 
@@ -344,13 +344,13 @@ static func destroy_room_async(room_id: String) -> DestroyRoomResponse:
 	else:
 		result.deserialize(api_response.data)
 	
-	HathoraEventBus.on_destroy_room.emit(result)
+	Hathora.EventBus.on_destroy_room.emit(result)
 	return result
 
 
 static func destroy_room(room_id: String) -> Signal:
 	destroy_room_async(room_id)
-	return HathoraEventBus.on_destroy_room
+	return Hathora.EventBus.on_destroy_room
 #endregion -- destroy_room
 
 
@@ -386,11 +386,11 @@ static func suspend_room_async(room_id: String) -> SuspendRoomResponse:
 	else:
 		result.deserialize(api_response.data)
 	
-	HathoraEventBus.on_suspend_room.emit(result)
+	Hathora.EventBus.on_suspend_room.emit(result)
 	return result
 
 
 static func suspend_room(room_id: String) -> Signal:
 	suspend_room_async(room_id)
-	return HathoraEventBus.on_suspend_room
+	return Hathora.EventBus.on_suspend_room
 #endregion -- suspend_room

@@ -1,12 +1,26 @@
-## TL;DR
-## * build_code_for - generates response class and sync + async calls
-## * generate_api - puts everything together: downloading -> parsing -> saving
-## * generate_common_types - generates all static types detected by _preload_type_if_any
-const OUTPUT_FOLDER: String = "res://addons/hathora_api/generator/output"
-const OUTPUT_FILENAME_TEMPLATE: String = OUTPUT_FOLDER + "/{category}/{version}/{name}.gd"
-const OUTPUT_FOLDER_TEMPLATE: String = OUTPUT_FOLDER + "/{category}/{version}"
+const ApiEndpoint = GD.Swagger.ApiEndpoint
+const Schema = GD.Swagger.Schema
+
+const GENERATOR_OUTPUT_FOLDER: String = "res://addons/hathora_api/generator/output"
+const COMMON_TYPES_PATH: String = GENERATOR_OUTPUT_FOLDER + "/common_types.gd"
+const EVENT_BUS_PATH: String = GENERATOR_OUTPUT_FOLDER + "/HathoraEventBus.gd"
+const OUTPUT_FOLDER: String = GENERATOR_OUTPUT_FOLDER + "/{category}/{version}"
+const OUTPUT_SPECIFIC_FILENAME: String = GENERATOR_OUTPUT_FOLDER + "/{category}/{version}/{category}_{version}.gd"
+const OUTPUT_GENERAL_FILENAME: String = GENERATOR_OUTPUT_FOLDER + "/{category}/{category}.gd"
 const DEBUG_JSON_FILE_PATH: String = "res://addons/hathora_api/generator/_debug_swagger.json"
 const SCHEMA_DOWNLOAD_URL: String = "https://hathora.dev/swagger.json"
+const ENDPOINTS_EXCEPTIONS: Array[String] = [
+	"/builds/v1/{appId}/run/{buildId}"
+]
+# NOTE: If those are used somewhere else, change this to a 
+# Dictionary with custom names
+const COMMON_TYPES_SCHEMAS_EXCEPTIONS: Array[String] = [
+	"Partial__card-CardPaymentMethod--ach-AchPaymentMethod--link-LinkPaymentMethod--__",
+	"Record_Partial_MetricName_.MetricValue-Array_",
+	"Pick_Room.Exclude_keyofRoom.allocations__",
+	"Omit_Room.allocations_",
+	"Record_string.never_"
+]
 
 const KNOWN_CONSTANTS: Dictionary = {
 	"appId": "Hathora.APP_ID"
@@ -17,25 +31,20 @@ const DEFAULT_ASSERTS: Array[String] = [
 const SERVER_ASSERTS: Array[String] = [
 	"assert(Hathora.assert_is_server(), \"unreacheble\")"
 ]
-
-const Utils = GD.Utils
-const Primitives = GD.Primitives
-const Endpoint = GD.Swagger.Endpoint
-# Keeps track of ALL preloaded types
-# (primarly for generating common_types.gd)
-## type_name: String; schema: GD.Swagger.Schema
-static var _preloaded_type_schemas: Dictionary = {}
-# Keeps track of preloaded type names for current endpoint
-static var _preloaded_types_current: Array[String] = []
+## Contains all preloaded types for current script (cleared every time)
+static var preloaded_types: Dictionary = {}
+static var event_bus_script_writer: GD.Writer
 
 
-static func generate_api(use_debug_file: bool = false):
-	_preloaded_type_schemas = {}
-	var raw_json: Dictionary
-	# Get openapi schema either from file or from the web
+static func generate_api(use_debug_file: bool = true) -> void:
+	event_bus_script_writer = GD.Writer.new()
+	event_bus_script_writer.codeline("extends Node").eol()
+	var full_json: Dictionary
+	
+	#region Get json schema
 	if use_debug_file:
 		var file = FileAccess.open(DEBUG_JSON_FILE_PATH, FileAccess.READ)
-		raw_json = JSON.parse_string(file.get_as_text())
+		full_json = JSON.parse_string(file.get_as_text())
 		file.close()
 	else:
 		var response = await Hathora.Http.download_file_async(SCHEMA_DOWNLOAD_URL)
@@ -43,456 +52,584 @@ static func generate_api(use_debug_file: bool = false):
 			push_error("Unexpected error while downloading API schema")
 			breakpoint
 		
-		raw_json = response.data
-	# Get schemas and endpoints
-	var schemas_source: Dictionary = Utils.safe_get(
-		raw_json, "components/schemas"
-	)
-	var paths: Dictionary = raw_json["paths"]
-	const ENDPOINTS_EXCEPTIONS: Array[String] = [
-		"/builds/v1/{appId}/run/{buildId}"
-	]
+		full_json = response.data
+	#endregion
 	
-	# Generate code for each endpoint
-	for path in paths:
-		_preloaded_types_current.clear()
-		
-		if ENDPOINTS_EXCEPTIONS.has(path):
+	## Dictionary[String, Schema]
+	var common_class_types: Dictionary = {}
+	var common_types_writer: GD.Writer = GD.Writer.new()
+	#region Parse schemas + common_types.gd
+	var all_schemas_json: Dictionary = GD.Utils.safe_get(
+		full_json, "components/schemas"
+	)
+	
+	for schema_name: String in all_schemas_json.keys():
+		if (COMMON_TYPES_SCHEMAS_EXCEPTIONS.has(schema_name) or
+				common_class_types.has(schema_name) or schema_name.ends_with("Response") 
+				or schema_name.ends_with("Params") or schema_name.ends_with("Request")):
 			continue
 		
-		var endpoint: Endpoint = Endpoint.parse(
-			path, paths[path], schemas_source
-		)
+		var schema: Schema = GD.Swagger.swagger_schema_to_gd(schema_name, all_schemas_json)
+		
+		if !schema.deprecated and schema.type.id == GD.Types.Id.Class:
+			common_class_types[schema_name] = generate_response_for(schema, false, common_types_writer)
+			common_types_writer.eol().eol()
+	
+	common_types_writer.finish(COMMON_TYPES_PATH)
+	#endregion
+	
+	## Dictionary[String, Dictionary[String, Array[ApiEndpoint]]]
+	var categorized_endpoints: Dictionary = {}
+	#region Parse paths
+	var raw_paths_json: Dictionary = full_json["paths"]
+	for url: String in raw_paths_json.keys():
+		if ENDPOINTS_EXCEPTIONS.has(url):
+			continue
+		
+		var path_json: Dictionary = raw_paths_json[url]
+		var endpoint: ApiEndpoint = ApiEndpoint.from_json(url, path_json, all_schemas_json)
+		
 		if endpoint.deprecated:
-			print("Skipping `" + path + "` because it's deprecated")
 			continue
 		
-		var code: String = build_code_for(endpoint)
-		# Save generated code
-		var category: String = endpoint.tags[0].to_lower().trim_suffix(endpoint.version)
-		DirAccess.make_dir_recursive_absolute(OUTPUT_FOLDER_TEMPLATE.format({
-				"category": category,
-				"version": endpoint.version,
-			})
-		)
-		var output_file = FileAccess.open(
-			OUTPUT_FILENAME_TEMPLATE.format({
-				"category": category,
-				"version": endpoint.version,
-				"name": endpoint.name_snake_case + '_' + endpoint.version
-			}), FileAccess.WRITE
-		)
-		output_file.store_string(code)
-		output_file.close()
-		print("Done generating `", path, '`')
-	
-	#print("Generating common types...")
-	#generate_common_types()
-
-
-static func generate_common_types() -> void:
-	var writer: GD.Writer.CodeWriter = GD.Writer.CodeWriter.new()
-	
-	# CRITICAL: It seems like using workaround with _build_response_class and
-	# global _preloaded_type_schemas tracking produces giberish.
-	# Option a) Rewrite _build_response_class
-	# Option b) Generate only a list of decoys that human needs to implement
-	# Option c) Screw this, no auto-generated common_types.gd I guess
-	
-	for type_name: String in _preloaded_type_schemas.keys():
-		writer.class_decl(type_name)
-		build_schema_based_class(writer, _preloaded_type_schemas[type_name])
-		writer.end_all()
-		writer.offset = 0
-		print("Done generating `", type_name, '`')
-	
-	writer.build(OUTPUT_FOLDER + "/common_types.gd")
-
-
-static func build_code_for(endpoint: Endpoint) -> String:
-	var writer: GD.Writer.CodeWriter = GD.Writer.CodeWriter.new()
-	
-	if endpoint.tags:
-		writer.comment(endpoint.tags[0]).eol()
-	
-	writer.variable(Primitives.Variable.create(
-		"ResponseJson", GD.Types.Dynamic, """preload("res://addons/hathora_api/core/http.gd").ResponseJson""",
-		false, true
-	)).eol().eol().eol()
-	
-	writer.comment(
-		"region       -- " + endpoint.name_snake_case, false
-	).eol()
-	
-	#region     -- Response class
-	writer.class_decl(
-		endpoint.name_PascalCase + "Response"
-	).add_field(
-		"error", GD.Types.Dynamic
-	).add_field(
-		"error_message", GD.Types.GodotString
-	).eol(true)
-	
-	if endpoint.ok_response.schema:
-		_preload_common_types(writer, endpoint.ok_response.schema)
-		build_schema_based_class(writer, endpoint.ok_response.schema)
-	else:
-		writer.code = writer.code.strip_edges(false)
-		writer.eol()
-	
-	var response_cls = writer.current_class
-	writer.end_all()
-	#endregion  -- Response class
-	
-	#region     -- Async func
-	var func_args: Array[GD.Primitives.FuncArg] = _generate_args_for(endpoint)
-	writer.func_decl(
-		endpoint.name_snake_case + "_async", 
-		response_cls.type, func_args, true, true
-	)
-	# Default + dev asserts
-	for assertation in DEFAULT_ASSERTS:
-		writer.codeline(assertation)
-	if endpoint.security.has(GD.Swagger.Security.Dev):
-		for assertation in SERVER_ASSERTS:
-			writer.codeline(assertation)
-	# Special asserts that exists only for "certain" enums
-	if writer.current_func._has_arg_with_name("region"):
-		writer.codeline(
-			"assert(Hathora.REGIONS.has(region), \"Region `\" + region + \"` doesn't exists\")"
-		)
-	if writer.current_func._has_arg_with_name("visibility"):
-		writer.codeline(
-			"assert(Hathora.VISIBILITIES.has(visibility), \"Visibility `\" + visibility + \"` doesn't exists\")"
-		)
-	writer.eol(true)
-	
-	# result var
-	writer.variable(GD.Primitives.Variable.create(
-		"result", response_cls.type, response_cls.name + ".new()"
-	)).eol()
-	# endpoint params
-	var query_params_exprs: Dictionary = {}
-	var path_expressions: Dictionary = {}
-	for param in endpoint.params:
-		if param.location == GD.Swagger.Location.Query:
-			query_params_exprs['"' + param.name_default + '"'] = param.name_snake_case
-		elif param.location == GD.Swagger.Location.Path:
-			if KNOWN_CONSTANTS.has(param.name_default):
-				path_expressions['"' + param.name_default + '"'] = KNOWN_CONSTANTS[param.name_default]
-			else:
-				path_expressions['"' + param.name_default + '"'] = param.name_snake_case
-	# Url variable decl
-	writer.variable(GD.Primitives.Variable.create(
-		"url", GD.Types.GodotString, 
-		"\"https://api.hathora.dev" + endpoint.path + '\"'
-	))
-	# Url path params
-	if not path_expressions.is_empty():
-		writer.expr(".format(").eol().dict_expr(
-			path_expressions, true, 1
-		).eol().codeline(')')
-	else:
-		writer.eol()
-	# Url query params
-	if not query_params_exprs.is_empty():
-		writer.codeline(
-			"url += Hathora.Http.build_query_params("
-		).dict_expr(
-			query_params_exprs, true, 1
-		).eol().codeline(')')
-	
-	writer.comment("Api call").eol()
-	# Headers
-	var headers_expr: String = "[\"Content-Type: application/json\""
-	if endpoint.security.has(GD.Swagger.Security.Auth):
-		headers_expr += ", \"Authorization: \" + auth_token"
-	elif endpoint.security.has(GD.Swagger.Security.Dev):
-		headers_expr += ", Hathora.DEV_AUTH_HEADER"
-	headers_expr += ']'
-	if endpoint.body:
-		headers_expr += ','
-	
-	writer.variable(GD.Primitives.Variable.create(
-		"api_response", GD.Types.class_("ResponseJson"),
-		str(
-			"await Hathora.Http.", endpoint.http_method, "_async("
-		)
-	)).eol().codeline("\turl,").codeline('\t' + headers_expr)
-	# Request body
-	if endpoint.body:
-		var body_schema = endpoint.body.schema
-		var body_exprs: Dictionary = {}
-		if endpoint.body.schema.is_flat:
-			body_exprs['"' + body_schema.flat.name_default + '"'] = body_schema.flat.name_snake_case
-		else:
-			for prop in body_schema.properties.values():
-				body_exprs['"' + prop.name_default + '"'] = prop.name_snake_case
-		writer.dict_expr(body_exprs, true, 1).eol()
-	# If body schema is empty, but method is post,
-	# send nothing/empty dict
-	elif endpoint.http_method == "post":
-		writer.codeline(", {}").eol()
-	writer.codeline(')')
-	
-	writer.comment("Api errors").eol().codeline(
-		"result.error = api_response.error"
-	).if_statement(
-		"result.error != Hathora.Error.Ok"
-	).comment(
-		"WARNING: HUMAN! I need your help - write custom error messages"
-	).eol().comment(
-		"List of error codes: " + str(endpoint.error_responses.keys())
-	).eol().codeline(
-		"result.error_message = Hathora.Error.push_default_or("
-	).codeline(
-		"\tapi_response, {}"
-	).codeline(')')
-	# If there is anything to deserialize...
-	if len(response_cls.fields) > 2:
-		writer.else_statement().codeline(
-			"result.deserialize(api_response.data)"
-		)
-	writer.end_statement()
-	
-	writer.codeline(str(
-		"HathoraEventBus.on_", endpoint.name_snake_case, 
-		".emit(result)"
-	)).codeline("return result")
-	
-	var async_func = writer.current_func
-	writer.end_decl().eol()
-	#endregion  -- Async func
-	
-	#region     -- Sync func
-	writer.func_decl(
-		endpoint.name_snake_case, 
-		GD.Types.GodotSignal, async_func.args, true, false
-	)
-	
-	var func_args_names: Array[String] = []
-	for arg in func_args:
-		func_args_names.push_back(arg.name)
-	writer.func_call(
-		async_func, func_args_names
-	).eol().codeline(
-		"return HathoraEventBus.on_" + endpoint.name_snake_case
-	)
-	#endregion  -- Sync func
-	
-	writer.end_decl(false).comment(
-		"endregion    -- " + endpoint.name_snake_case, false
-	).eol()
-	return writer.build()
-
-
-static func _preload_common_types(writer: GD.Writer.CodeWriter, schema: GD.Swagger.Schema) -> void:
-	var _insert_preload_statement: Callable = func(type_name: String) -> void:
-		writer.insert_codeline(
-			1,
-			str(
-				"const ", type_name, " = preload(\"res://addons/hathora_api/api/common_types.gd\").", 
-				type_name
-			)
-		)
-	
-	var _preload_type_if_any: Callable = func(type: GD.Types.GodotType) -> void:
-		# Type itself
-		if (!_preloaded_types_current.has(type.name) and 
-				type.id == GD.Types.Id.Class):
-			_preloaded_type_schemas[type.name] = schema
-			_preloaded_types_current.push_back(type.name)
-			_insert_preload_statement.call(type.name)
-		# Subtypes (if any)
-		else:
-			if (type.value_sub_type != null and 
-					!_preloaded_types_current.has(type.value_sub_type.name) and
-					type.value_sub_type.id == GD.Types.Id.Class):
-				_preloaded_type_schemas[type.value_sub_type.name] = schema
-				_preloaded_types_current.push_back(type.value_sub_type.name)
-				_insert_preload_statement.call(type.value_sub_type.name)
+		# Sort endpoints based on group and version
+		if categorized_endpoints.has(endpoint.group_name):
+			if !categorized_endpoints[endpoint.group_name].has(endpoint.version):
+				categorized_endpoints[endpoint.group_name] = { endpoint.version: [] }
 			
-			if (type.key_sub_type != null and 
-					!_preloaded_types_current.has(type.key_sub_type.name) and 
-					type.key_sub_type.id == GD.Types.Id.Class):
-				_preloaded_type_schemas[type.key_sub_type.name] = schema
-				_preloaded_types_current.push_back(type.key_sub_type.name)
-				_insert_preload_statement.call(type.key_sub_type.name)
-	
-	if schema.is_flat:
-		_preload_type_if_any.call(schema.flat.gd_type)
-	else:
-		for prop_name in schema.properties.keys():
-			var value = schema.properties[prop_name]
-			_preload_type_if_any.call(value.gd_type)
-
-## (assumes class is already declared by [param writer])
-static func build_schema_based_class(writer: GD.Writer.CodeWriter, schema: GD.Swagger.Schema) -> void:
-	assert(writer.current_class != null, "No target class to build!")
-	
-	#region Fields
-	if schema.is_flat:
-		# Specify time format for clarity
-		if schema.flat.gd_type.id == GD.Types.Id.DateTime:
-			schema.add_field(
-				schema.flat.name_snake_case + "_unix", schema.flat.gd_type
-			)
+			categorized_endpoints[endpoint.group_name][endpoint.version].push_back(endpoint)
 		else:
-			writer.add_field(
-				schema.flat.name_snake_case, schema.flat.gd_type
-			)
-	else:
-		for prop_name in schema.properties.keys():
-			var value = schema.properties[prop_name]
-			# Specify time format for clarity
-			if value.gd_type.id == GD.Types.Id.DateTime:
-				writer.add_field(value.name_snake_case + "_unix", value.gd_type)
-			else:
-				writer.add_field(value.name_snake_case, value.gd_type)
+			categorized_endpoints[endpoint.group_name] = {
+				endpoint.version: [endpoint]
+			}
 	#endregion
 	
-	if writer.current_class.fields.size() > 2 or writer.current_class.fields.size() == 1:
-		writer.eol(true)
-	#region deserialize(data)
-	var data_arg_type = GD.Types.dict()
-	
-	if (schema.is_flat and schema.gd_type.id != GD.Types.Id.Class):
-		# By default parser gives specific types and subtypes.
-		# in the deserialization context type info doesn't exist, so
-		# classes are replaced with Dictionary (json) =
-		if (schema.gd_type.id == GD.Types.Id.Array
-				and schema.gd_type.value_sub_type.id == GD.Types.Id.Class):
-			data_arg_type = GD.Types.array(GD.Types.dict())
-		# number/string/array/etc.
-		else:
-			data_arg_type = schema.gd_type
-	
-	writer.add_method(
-		"deserialize", GD.Types.Void, [
-			GD.Primitives.FuncArg.create("data", data_arg_type, true)
-		]
-	)
-	
-	if schema.is_flat:
-		_build_property_desirialization(schema.flat, writer)
-	else:
-		for property in schema.properties.values():
-			_build_property_desirialization(property, writer)
-			writer.eol(true)
-	#endregion
-	writer.code = writer.code.strip_edges(false)
-	writer.eol().eol()
-
-#region Helper functions
-static func _generate_args_for(endpoint: Endpoint) -> Array[GD.Primitives.FuncArg]:
-	# If object resembles a known type, Dictionary still must be used
-	# (primarly as an API param)
-	var _validate_arg_type = func _lambda(type: GD.Types.GodotType) -> GD.Types.GodotType:
-		if type.id == GD.Types.Id.Class:
-			return GD.Types.dict()
-		return type
-	
-	var result: Array[GD.Primitives.FuncArg] = []
-	
-	if endpoint.security.has(GD.Swagger.Security.Auth):
-		result.push_back(GD.Primitives.FuncArg.create(
-			"auth_token", GD.Types.GodotString, true
-		))
-	
-	# Request body args
-	if endpoint.body:
-		var body_schema = endpoint.body.schema
-		if body_schema.is_flat:
-			result.push_back(GD.Primitives.FuncArg.create(
-				body_schema.flat.name_snake_case,
-				_validate_arg_type.call(body_schema.flat.gd_type),
-				body_schema.required
-			))
-		else:
-			for property in body_schema.properties.values():
-				result.push_back(GD.Primitives.FuncArg.create(
-					property.name_snake_case,
-					_validate_arg_type.call(property.gd_type),
-					body_schema.required.has(property.name_default)
-				))
-	# Parameters
-	for param in endpoint.params:
-		# If value is a constant no need to pass it as an arg
-		if KNOWN_CONSTANTS.has(param.name_default):
-			continue
+	#region Generate paths
+	for category: String in categorized_endpoints.keys():
+		var category_writer: GD.Writer = GD.Writer.new().comment(category, true).eol()
+		var versions: Dictionary = categorized_endpoints[category]
 		
-		result.push_back(GD.Primitives.FuncArg.create(
-			param.name_snake_case,
-			param.schema.gd_type,
-			param.required
+		for version: String in versions.keys():
+			var filename: String = OUTPUT_SPECIFIC_FILENAME.format(
+				{ "category": category, "version": version }
+			)
+			category_writer.add_var(
+				GD.Types.GodotVariable.new(
+					version.to_upper(), GD.Types.class_("Script"), 
+					false, true, 'preload("' + filename + '")'
+				)
+			)
+			var api_writer: GD.Writer = GD.Writer.new()
+			generate_api_group(category, version, versions[version], api_writer)
+			api_writer.finish(filename)
+		category_writer.finish(OUTPUT_GENERAL_FILENAME.format({"category": category}))
+	#endregion
+	
+	event_bus_script_writer.finish(EVENT_BUS_PATH)
+
+
+#region Generation utils
+static func _preload_type(type_name: String, writer: GD.Writer) -> void:
+	writer.insert_codeline(
+		1,
+		str(
+			"const ", type_name, 
+			' = preload("res://addons/hathora_api/api/common_types.gd").',
+			type_name
+		)
+	)
+
+static func _format_doc_comment(raw_comment: String, writer: GD.Writer) -> String:
+	return raw_comment.replace("\n\n", '\n').replace("\n", "\n" + writer._offset() + "## ")
+
+static func _get_data_arg_type_for(schema: Schema) -> GD.Types.GodotType:
+	# data arg type represents a parsed json, so:
+	# - Class is replaced with Dictionary
+	var data_json_type: GD.Types.GodotType
+	
+	if schema.type.id == GD.Types.Id.Class:
+		data_json_type = GD.Types.dict()
+	elif schema.type.id == GD.Types.Id.Array:
+		if schema.type.sub_type_value.id == GD.Types.Id.Class:
+			data_json_type = GD.Types.array(GD.Types.dict())
+		else:
+			data_json_type = GD.Types.array(schema.type.sub_type_value)
+	else:
+		data_json_type = schema.type
+	
+	return data_json_type
+
+## Generates deserialization code for signle property
+static func _deserialize_property_from_data_json(
+			target_object: String, name_snake: String, property: GD.Types.GodotTypeProperty, 
+			data_json_type: GD.Types.GodotType, 
+			writer: GD.Writer) -> void:
+		
+		var nameCamel: String = name_snake.to_camel_case()
+		var json_value_expr: String = 'data["' + nameCamel + '"]'
+		#region Array
+		if property.type.id == GD.Types.Id.Array:
+			var item_type: GD.Types.GodotType
+			#region Sub type
+			if property.type.sub_type_value.id == GD.Types.Id.Class:
+				# Class with only 1 Array field
+				if property.type.properties.size() == 1 and property.type.properties.has("result"):
+					# NOTE: Array of Dictionary because nested arrays are not supported
+					# by schema
+					item_type = GD.Types.array(GD.Types.dict())
+				else:
+					item_type = GD.Types.dict()
+			else:
+				item_type = property.type.sub_type_value
+			#endregion
+			
+			writer.for_in(
+				"item",
+				GD.Types.TypedExpr.new(json_value_expr, property.type),
+				item_type
+			).eol().codeline(target_object + '.' + name_snake, false)
+			
+			match property.type.sub_type_value.id:
+				GD.Types.Id.Class:
+					writer.raw_expr(".push_back(" + property.type.sub_type_value.name + ".deserialize(item))")
+				GD.Types.Id.DateTime:
+					writer.raw_expr(
+						"_unix.push_back(Time.get_unix_time_from_datetime_string(item))"
+					)
+				GD.Types.Id.Int:
+					writer.raw_expr(".push_back(int(item))")
+				GD.Types.Id.Float:
+					writer.raw_expr(".push_back(float(item))")
+				_:
+					writer.raw_expr(".push_back(item)")
+			
+			writer.end().eol()
+		#endregion
+		#region Datetime
+		elif property.type.id == GD.Types.Id.DateTime:
+			writer.codeline(
+				target_object + '.' + name_snake + "_unix = ", false
+			).raw_expr(
+				"Time.get_unix_time_from_datetime_string(" + json_value_expr + ')'
+			).eol()
+		#endregion
+		else:
+			writer.codeline(target_object + '.' + name_snake + " = ", false)
+			
+			#region Class
+			if property.type.id == GD.Types.Id.Class:
+				writer.call_unsafe(
+					property.type.name + ".deserialize",
+					[json_value_expr]
+				)
+			#endregion
+			#region Other
+			else:
+				match property.type.id:
+					GD.Types.Id.Int:
+						writer.raw_expr("int(" + json_value_expr + ')')
+					GD.Types.Id.Float:
+						writer.raw_expr("float(" + json_value_expr + ')')
+					_:
+						writer.raw_expr(json_value_expr)
+			#endregion
+			writer.eol()
+
+## Sometimes GD type MUST be JSON (api) compatible
+static func __format_type_to_fit_json(type: GD.Types.GodotType) -> GD.Types.GodotType:
+	if type.id == GD.Types.Id.Class:
+		return GD.Types.dict()
+	if type.id == GD.Types.Id.Array:
+		return GD.Types.array(__format_type_to_fit_json(type.sub_type_value))
+	if type.id == GD.Types.Id.Dict:
+		return GD.Types.dict(
+			__format_type_to_fit_json(type.sub_type_key),
+			__format_type_to_fit_json(type.sub_type_value),
+		)
+	
+	return type
+
+static func _generate_func_args_for(endpoint: ApiEndpoint) -> Array[GD.Types.GodotFunctionArg]:
+	var result: Array[GD.Types.GodotFunctionArg] = []
+	
+	if endpoint.security.has(ApiEndpoint.Security.User):
+		result.push_back(GD.Types.GodotFunctionArg.new(
+			"auth_token", GD.Types.String_
 		))
 	
-	result.sort_custom(
-		func(a: GD.Primitives.FuncArg, b: GD.Primitives.FuncArg) -> bool:
-			return not b.required
-	)
+	#region Request body
+	if endpoint.request_body != null:
+		var body_schema: GD.Swagger.Schema = endpoint.request_body.schema
+		
+		for name: String in body_schema.type.properties.keys():
+			var property: GD.Types.GodotTypeProperty = body_schema.type.properties[name]
+			
+			result.push_back(GD.Types.GodotFunctionArg.new(
+				name, 
+				__format_type_to_fit_json(property.type), 
+				property.required
+			))
+	#endregion
+	
+	#region Url params
+	for target: Dictionary in [endpoint.path_params, endpoint.query_params]:
+		for name: String in target.keys():
+			var url_param: GD.Swagger.ApiEndpointUrlParam = target[name]
+			result.push_back(GD.Types.GodotFunctionArg.new(
+				url_param.name_snake, 
+				__format_type_to_fit_json(url_param.schema.type), 
+				url_param.required
+			))
+	#endregion
+	
+	return result
+#endregion
+
+
+#region Main
+static func _observe_type_for_preload(type: GD.Types.GodotType, writer: GD.Writer) -> void:
+	if type.id == GD.Types.Id.Class:
+		if not preloaded_types.has(type.name):
+			preloaded_types[type.name] = type
+			_preload_type(type.name, writer)
+		
+		for name: String in type.properties.keys():
+			var prop_type: GD.Types.GodotType = type.properties[name].type
+			_observe_type_for_preload(prop_type, writer)
+	
+	elif type.id == GD.Types.Id.Array:
+		_observe_type_for_preload(type.sub_type_value, writer)
+	elif type.id == GD.Types.Id.Dict:
+		_observe_type_for_preload(type.sub_type_key, writer)
+		_observe_type_for_preload(type.sub_type_value, writer)
+
+
+static func generate_response_for(schema: Schema, is_api_response: bool, writer: GD.Writer, custom_name: String = '') -> GD.Types.GodotClass:
+	#region class decl
+	if schema.description != '':
+		writer.comment(_format_doc_comment(schema.description, writer), true).eol()
+	
+	if custom_name != '':
+		writer.add_class(custom_name)
+	else:
+		writer.add_class(schema.type.name)
+	
+	if schema.type.properties.size() == 0:
+		writer.add_field(
+			GD.Types.GodotVariable.new("result", schema.type, false, false)
+		)
+	else:
+		#region Properties
+		for name: String in schema.type.properties.keys():
+			var property: GD.Types.GodotTypeProperty = schema.type.properties[name]
+			
+			#region Doc comment
+			if property.metadata.get("description", '') != '':
+				writer.comment(_format_doc_comment(property.metadata["description"], writer), true).eol()
+			if !property.required:
+				writer.comment("(optional)", true).eol()
+			#endregion
+			#region Field
+			var default_value_expr: String = ''
+			if !property.required:
+				default_value_expr = GD.Types.get_default_type_expr(property.type.id)
+			
+			var postfix: String = ''
+			if property.type.id == GD.Types.Id.DateTime:
+				postfix = "_unix"
+			
+			writer.add_field(
+				GD.Types.GodotVariable.new(
+					name + postfix, property.type, false, false, default_value_expr
+				)
+			)
+			#endregion
+		#endregion
+	#endregion
+	
+	# self. or result.
+	var target_object_name: String = "result"
+	if is_api_response:
+		target_object_name = "self"
+		# Response specific fields
+		writer.eol().add_field(GD.Types.GodotVariable.new(
+			"error"
+		)).add_field(GD.Types.GodotVariable.new(
+			"error_message", GD.Types.String_
+		))
+	writer.eol()
+	
+	#region .deserialize(data) method
+	var data_json_type: GD.Types.GodotType = _get_data_arg_type_for(schema)
+	var return_type: GD.Types.GodotType = GD.Types.Void if is_api_response else writer.cur_class.as_type()
+	
+	writer.add_method(GD.Types.GodotFunction.new(
+		"deserialize", 
+		[GD.Types.GodotFunctionArg.new("data", data_json_type)], 
+		return_type, 
+		!is_api_response,
+	))
+	
+	if !is_api_response:
+		writer.add_var(GD.Types.GodotVariable.new(
+			"result", return_type
+		)).eol().eol(true)
+	
+	if schema.type.properties.size() == 0:
+		#region Single result deserialization
+		if schema.type.id == GD.Types.Id.Array:
+			if schema.type.sub_type_value.id == GD.Types.Id.Class:
+				var _item_expr: String = str(
+					target_object_name + ".result.push_back(",
+					schema.type.sub_type_value.name, ".deserialize(item))"
+				)
+				writer.for_in(
+					"item",
+					GD.Types.TypedExpr.new("data", data_json_type),
+					data_json_type.sub_type_value
+				).eol().codeline(_item_expr, false).end().eol(true)
+			else:
+				writer.codeline(target_object_name + ".result = data")
+		else:
+			writer.codeline(target_object_name + ".result = data")
+		#endregion
+	else:
+		#region Properties deserialization
+		for name: String in schema.type.properties.keys():
+			var property: GD.Types.GodotTypeProperty = schema.type.properties[name]
+			var nameCamel: String = name.to_camel_case()
+			
+			if !property.required:
+				writer.if_('data.has("' + nameCamel + '")').eol()
+				_deserialize_property_from_data_json(
+					target_object_name, name, property, 
+					data_json_type, writer
+				)
+				writer.end()
+			else:
+				writer.codeline('assert(data.has("' + nameCamel + '"), "Missing parameter \\"' + nameCamel + '\\"")')
+				_deserialize_property_from_data_json(
+					target_object_name, name, property, 
+					data_json_type, writer
+				)
+			
+			writer.eol(true)
+		#endregion
+	#endregion
+	
+	var result: GD.Types.GodotClass = writer.cur_class
+	if !is_api_response:
+		writer.codeline("return result")
+	writer.end_method().end_class()
+	writer.code = writer.code.strip_edges(false)
+	writer.eol()
+	
 	return result
 
 
-## TODO: explain
-## TL;DR sourse_data_type - type of the data param in the deserialize function
-static func _build_property_desirialization(property, writer: GD.Writer.CodeWriter) -> void:
-	if property.name_default != '':
-		writer.codeline(str(
-			"assert(data.has(\"", property.name_default, 
-			"\"), \"Missing parameter \\\"", property.name_default,
-			"\\\"\")"
-		))
+static func generate_api_group(category: String, version: String, endpoints: Array, writer: GD.Writer) -> void:
+	#region Base
+	writer.comment(category.capitalize() + ' ' + version).eol().codeline(
+		'const ResponseJson = preload("res://addons/hathora_api/core/http.gd").ResponseJson'
+	).eol().eol()
+	event_bus_script_writer.comment("region " + category, false, false, 0).eol()
+	#endregion
 	
-	match property.gd_type.id:
-		GD.Types.Id.Class:
-			writer.codeline(str(
-					"self.", property.name_snake_case,
-					" = ", property.gd_type.name, ".deserialize(data[\"",
-					property.name_default, "\"])"
-				)
+	preloaded_types.clear()
+	for endpoint: ApiEndpoint in endpoints:
+		writer.comment("region " + endpoint.name_snake, false, false, 0).eol()
+		#region Signal for EventBus
+		var signal_name: String = "on_" + endpoint.name_snake + '_' + version
+		
+		event_bus_script_writer.raw_expr("signal " + signal_name + '(')
+		if endpoint.ok_response != null:
+			event_bus_script_writer.raw_expr("response")
+		event_bus_script_writer.raw_expr(')').eol()
+		#endregion
+		
+		#region Response cls
+		var response_cls: GD.Types.GodotClass
+		
+		if endpoint.ok_response != null:
+			response_cls = generate_response_for(
+				endpoint.ok_response.schema, true, 
+				writer, endpoint.nameDefault + "Response"
 			)
-		GD.Types.Id.DateTime:
-			writer.codeline(str(
-					"self.", property.name_snake_case, 
-					"_unix = Time.get_unix_time_from_datetime_string(data[\"",
-					property.name_default, "\"])"
-				)
+			# To avoid preloading "self" response from common_types
+			var response_type: GD.Types.GodotType = response_cls.as_type()
+			preloaded_types[response_type.name] = response_type
+			_observe_type_for_preload(response_type, writer)
+		else:
+			writer.add_class(
+				endpoint.nameDefault
+			).add_field(
+				GD.Types.GodotVariable.new("error")
+			).add_field(GD.Types.GodotVariable.new(
+				"error_message", GD.Types.String_
+			))
+			response_cls = writer.cur_class
+			writer.end_class()
+		
+		writer.eol().eol()
+		#endregion
+		
+		var response_type: GD.Types.GodotType = response_cls.as_type()
+		var function_args: Array[GD.Types.GodotFunctionArg] = _generate_func_args_for(endpoint)
+		
+		#region Async func
+			#region decl
+		writer.add_function(
+			GD.Types.GodotFunction.new(
+				endpoint.name_snake + "_async", function_args,
+				response_type, true, true
 			)
-		GD.Types.Id.Array:
-			var prop_name: String = "result"
-			if property.name_snake_case != '':
-				prop_name = property.name_snake_case
-				writer.for_statement(
-					"part", "data[\"" + property.name_default + '"]'
-				)
+		)
+			#endregion
+			#region asserts
+		for assert_: String in DEFAULT_ASSERTS:
+			writer.codeline(assert_)
+		
+		if endpoint.security.has(ApiEndpoint.Security.Dev):
+			for assert_: String in SERVER_ASSERTS:
+				writer.codeline(assert_)
+		
+		for arg: GD.Types.GodotFunctionArg in function_args:
+			var name_: String = arg.name.to_lower()
+			if name_ == "region":
+				writer.codeline('assert(Hathora.REGIONS.has(region), "ASSERT! Region `" + region + "` doesn\'t exists")')
+			elif name_ == "visibility" :
+				writer.codeline('assert(Hathora.VISIBILITIES.has(visibility), "ASSERT! Visibility `" + visibility + "` doesn\'t exists")')
+			#endregion
+		
+		writer.eol(true)
+		writer.add_var(GD.Types.GodotVariable.new(
+			"result", response_type, false, false, response_type.name + '.new()'
+		)).eol()
+		
+			#region Url path exprs
+		var url_path_exprs: Dictionary = {}
+		for name: String in endpoint.path_params.keys():
+			var param: GD.Swagger.ApiEndpointUrlParam = endpoint.path_params[name]
+			if KNOWN_CONSTANTS.has(param.nameDefault):
+				url_path_exprs['"' + param.nameDefault + '"'] = KNOWN_CONSTANTS[param.nameDefault]
 			else:
-				writer.for_statement(
-					"part", "data"
-				)
+				url_path_exprs['"' + param.nameDefault + '"'] = param.nameDefault
+			#endregion
+		
+			#region Url var
+		writer.add_var(GD.Types.GodotVariable.new(
+			"url", GD.Types.String_, false, false, 
+			'"https://api.hathora.dev' + endpoint.url
+		))
+		if !url_path_exprs.is_empty():
+			writer.raw_expr(
+				'".format('
+			).dict_expr(url_path_exprs).eol().raw_expr(')').eol()
+		else:
+			writer.raw_expr('"').eol()
+		writer.eol()
+			#endregion
+		
+			#region Url query
+		var url_query_exprs: Dictionary = {}
+		for name: String in endpoint.query_params.keys():
+			var param: GD.Swagger.ApiEndpointUrlParam = endpoint.query_params[name]
+			url_query_exprs['"' + param.nameDefault + '"'] = param.nameDefault
+		
+		if !url_query_exprs.is_empty():
+			writer.codeline(
+				"url += Hathora.Http.build_query_params("
+			).dict_expr(url_query_exprs).eol().codeline(')')
+			#endregion
+		
+			#region Headers exprs
+		var headers_exprs: Array[String] = []
+		if endpoint.request_body != null:
+			headers_exprs.push_back('"Content-Type: application/json"')
+		if endpoint.security.has(ApiEndpoint.Security.User):
+			headers_exprs.push_back('"Authorization: " + auth_token')
+		if endpoint.security.has(ApiEndpoint.Security.Dev):
+			headers_exprs.push_back("Hathora.DEV_AUTH_HEADER")
+			#endregion
 			
-			# If sub type is a class - deserialize it
-			if property.gd_type.value_sub_type.id == GD.Types.Id.Class:
-				writer.codeline(str(
-					"self.", prop_name, ".push_back(", 
-					property.gd_type.value_sub_type.name, ".deserialize(part))"
-				))
-			# Otherwise just append
-			else:
-				writer.codeline(str(
-					"self.", prop_name, ".push_back(part)"
-				))
-			writer.offset -= 1
-		_:
-			# TODO: explanation
-			# TL;DR Some endpoints return flat string/number or whatever
-			# That's why there is no propery name
-			if property.name_default == '':
-				writer.codeline("self.result = data")
-			else:
-				writer.codeline(str(
-						"self.", property.name_snake_case,
-						" = data[\"", property.name_default, "\"]"
-					)
-				)
+			#region Body expr
+		var body_exprs: Dictionary = {}
+		if endpoint.request_body != null:
+			var body_schema: GD.Swagger.Schema = endpoint.request_body.schema
+		
+			for name: String in body_schema.type.properties.keys():
+				body_exprs['"' + name.to_camel_case() + '"'] = name
+			#endregion
+		
+			#region Api response
+		writer.comment("Api call").eol()
+		writer.add_var(
+			GD.Types.GodotVariable.new("api_response", GD.Types.class_("ResponseJson"))
+		).raw_expr(
+			" = await Hathora.Http." + endpoint.http_method + "_async("
+		).eol().raw_expr("\turl,", true).eol().raw_expr('', true).arr_expr(
+			headers_exprs, false, true
+		)
+		if endpoint.http_method == "post":
+			writer.raw_expr(",\n").dict_expr(body_exprs, true, true)
+		writer.eol().codeline(')')
+			#endregion
+			
+			#region Api errors
+		writer.comment("Api errors").eol().codeline(
+			"result.error = api_response.error"
+		).if_(
+			"result.error != Hathora.Error.Ok"
+		).eol().comment(
+			"WARNING: Human! I need your help - write custom error messages"
+		).eol().comment(
+			"List of error codes: " + str(endpoint.error_responses.keys())
+		).eol().codeline(
+			"result.error_message = Hathora.Error.push_default_or("
+		).codeline(
+			"\tapi_response, {}"
+		).codeline(')')
+		
+		if response_cls.properties.size() > 2:
+			writer.else_().eol().codeline("result.deserialize(api_response.data)")
+		writer.end().eol(true)
+			#endregion
+		
+		writer.raw_expr(
+			"HathoraEventBus." + signal_name + ".emit(", true
+		)
+		if response_cls.properties.size() > 2:
+			writer.raw_expr("result)")
+		else:
+			writer.raw_expr(')')
+		writer.eol().codeline("return result")
+		
+		#endregion
+		writer.end_func().eol().eol()
+		
+		#region Sync func
+		writer.add_function(
+			GD.Types.GodotFunction.new(
+				endpoint.name_snake, function_args,
+				GD.Types.Signal_, true, false
+			)
+		)
+		
+			#region Call to async
+		var args_exprs: Array[String] = []
+		for _arg: GD.Types.GodotFunctionArg in function_args:
+			args_exprs.push_back(_arg.name)
+		
+		writer.call_unsafe(
+			endpoint.name_snake + "_async",
+			args_exprs, false, true
+		).eol()
+			#endregion
+		writer.codeline("return HathoraEventBus." + signal_name)
+		writer.end_func()
+		#endregion
+		
+		writer.comment("endregion", false, false, 0).eol().eol().eol()
+	
+	event_bus_script_writer.comment("endregion", false, false, 0).eol().eol()
 #endregion
