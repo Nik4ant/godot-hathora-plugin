@@ -1,6 +1,3 @@
-# Note(Nik4ant): As much as I would love to use an enum here, I can't
-# (Get back to this message if there is a better design idea)
-
 # This way plugins' Ok code is the same as Godot's @GlobalScope.OK
 const Ok = OK
 ## Error occured, but its cause is unknown
@@ -46,7 +43,7 @@ const DEFAULT_HINTS: Dictionary = {
 	Unauthorized: [
 		"Make sure you're using correct auth/dev token",
 	],
-	# Note: Base url is always valid since it's defined on plugin side
+	# Note: Base url is always valid
 	ApiDontExists: [
 		"Make sure app with initialized APP_ID exists"
 	],
@@ -69,10 +66,10 @@ static func push_default_or(request: ResponseJson, custom_hints: Dictionary = {}
 	
 	assert(error_message != '', "ASSERT! Unknown error on the plugin side, please report")
 	push_error(error_message)
-	# Most of the time API response contains an error info
-	# (See Http module to see how it's parsed)
-	if request.data.has("__message__"):
-		push_error("Message from API: `" + request.data["__message__"], '`')
+	# If error occured and response is a String, most likely 
+	# response is an error message
+	if request.data is String:
+		push_error("Message from API: `" + request.data, '`')
 	
 	var hint_message: String = ''
 	var hints: Array = custom_hints.get(request.error, [])
@@ -88,6 +85,8 @@ static func push_default_or(request: ResponseJson, custom_hints: Dictionary = {}
 	
 	if hint_message != '':
 		push_warning(hint_message)
-		print(hint_message)
+		# TODO: test print_rich
+		print_rich("[color=orange][b][/b]" + hint_message + "[/b][/color]")
+		print("--------\n[printing again in case styling can't be used]:\n--------", hint_message)
 	
 	return error_message

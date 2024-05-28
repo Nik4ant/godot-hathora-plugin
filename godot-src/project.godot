@@ -12,13 +12,18 @@ config_version=5
 
 config/name="HathoraPlugin"
 run/main_scene="res://scenes/ui/main_menu/main_menu.tscn"
-config/features=PackedStringArray("4.1", "GL Compatibility")
+config/features=PackedStringArray("4.2", "GL Compatibility")
 config/icon="res://icon.svg"
 
 [autoload]
 
 Hathora="*res://addons/hathora_api/HathoraClient.tscn"
-HathoraEventBus="*res://addons/hathora_api/HathoraEventBus.gd"
+GD="*res://addons/hathora_api/generator/gd/gd.gd"
+HathoraEventBus="*res://addons/hathora_api/core/HathoraEventBus.gd"
+
+[debug]
+
+gdscript/warnings/untyped_declaration=1
 
 [display]
 
@@ -31,6 +36,10 @@ window/stretch/mode="canvas_items"
 [editor_plugins]
 
 enabled=PackedStringArray("res://addons/hathora_api/plugin.cfg")
+
+[filesystem]
+
+import/blender/enabled=false
 
 [rendering]
 
