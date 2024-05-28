@@ -1,3 +1,7 @@
+# Ideas
+- Generate SDK for all target platforms (Unity, UE, Godot, custom?)
+- Have a context specific error messages/hints (aka potential causes of the problem)
+
 ## Things to improve:
 - Some parameters are meant to be serialized (for example, RoomConfig)
 They have type = "string", but for better UX on Godot side they should be

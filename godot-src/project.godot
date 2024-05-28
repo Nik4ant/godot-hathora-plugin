@@ -18,8 +18,8 @@ config/icon="res://icon.svg"
 [autoload]
 
 Hathora="*res://addons/hathora_api/HathoraClient.tscn"
-HathoraEventBus="*res://addons/hathora_api/core/HathoraEventBus.gd"
 GD="*res://addons/hathora_api/generator/gd/gd.gd"
+HathoraEventBus="*res://addons/hathora_api/core/HathoraEventBus.gd"
 
 [debug]
 

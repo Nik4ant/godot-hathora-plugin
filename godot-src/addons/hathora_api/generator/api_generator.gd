@@ -1,7 +1,7 @@
 const ApiEndpoint = GD.Swagger.ApiEndpoint
 const Schema = GD.Swagger.Schema
 
-const GENERATOR_OUTPUT_FOLDER: String = "res://addons/hathora_api/generator/output"
+const GENERATOR_OUTPUT_FOLDER: String = "res://addons/hathora_api/generator/output/"
 const COMMON_TYPES_PATH: String = GENERATOR_OUTPUT_FOLDER + "/common_types.gd"
 const EVENT_BUS_PATH: String = GENERATOR_OUTPUT_FOLDER + "/HathoraEventBus.gd"
 const OUTPUT_FOLDER: String = GENERATOR_OUTPUT_FOLDER + "/{category}/{version}"
@@ -28,6 +28,7 @@ const KNOWN_CONSTANTS: Dictionary = {
 const DEFAULT_ASSERTS: Array[String] = [
 	"assert(Hathora.APP_ID != '', \"Hathora MUST have a valid APP_ID. See init() function\")"
 ]
+
 const SERVER_ASSERTS: Array[String] = [
 	"assert(Hathora.assert_is_server(), \"unreacheble\")"
 ]
@@ -36,7 +37,7 @@ static var preloaded_types: Dictionary = {}
 static var event_bus_script_writer: GD.Writer
 
 
-static func generate_api(use_debug_file: bool = true) -> void:
+static func generate_api(use_debug_file: bool = false) -> void:
 	event_bus_script_writer = GD.Writer.new()
 	event_bus_script_writer.codeline("extends Node").eol()
 	var full_json: Dictionary
@@ -47,14 +48,8 @@ static func generate_api(use_debug_file: bool = true) -> void:
 		full_json = JSON.parse_string(file.get_as_text())
 		file.close()
 	else:
-		var response = await Hathora.Http.download_file_async(SCHEMA_DOWNLOAD_URL)
-		if response.error != Hathora.Error.Ok:
-			push_error("Unexpected error while downloading API schema")
-			breakpoint
-		
-		full_json = response.data
+		full_json = (await Hathora.Http.download_file_async(SCHEMA_DOWNLOAD_URL)).data
 	#endregion
-	
 	## Dictionary[String, Schema]
 	var common_class_types: Dictionary = {}
 	var common_types_writer: GD.Writer = GD.Writer.new()
@@ -274,6 +269,9 @@ static func _generate_func_args_for(endpoint: ApiEndpoint) -> Array[GD.Types.God
 	#region Url params
 	for target: Dictionary in [endpoint.path_params, endpoint.query_params]:
 		for name: String in target.keys():
+			if KNOWN_CONSTANTS.has(name):
+				continue
+
 			var url_param: GD.Swagger.ApiEndpointUrlParam = target[name]
 			result.push_back(GD.Types.GodotFunctionArg.new(
 				url_param.name_snake, 
@@ -513,7 +511,7 @@ static func generate_api_group(category: String, version: String, endpoints: Arr
 			if KNOWN_CONSTANTS.has(param.nameDefault):
 				url_path_exprs['"' + param.nameDefault + '"'] = KNOWN_CONSTANTS[param.nameDefault]
 			else:
-				url_path_exprs['"' + param.nameDefault + '"'] = param.nameDefault
+				url_path_exprs['"' + param.nameDefault + '"'] = param.name_snake
 			#endregion
 		
 			#region Url var
@@ -524,7 +522,7 @@ static func generate_api_group(category: String, version: String, endpoints: Arr
 		if !url_path_exprs.is_empty():
 			writer.raw_expr(
 				'".format('
-			).dict_expr(url_path_exprs).eol().raw_expr(')').eol()
+			).dict_expr(url_path_exprs, true, false, false).eol().raw_expr(')', true).eol()
 		else:
 			writer.raw_expr('"').eol()
 		writer.eol()
@@ -534,12 +532,15 @@ static func generate_api_group(category: String, version: String, endpoints: Arr
 		var url_query_exprs: Dictionary = {}
 		for name: String in endpoint.query_params.keys():
 			var param: GD.Swagger.ApiEndpointUrlParam = endpoint.query_params[name]
-			url_query_exprs['"' + param.nameDefault + '"'] = param.nameDefault
+			if KNOWN_CONSTANTS.has(param.nameDefault):
+				url_query_exprs['"' + param.nameDefault + '"'] = KNOWN_CONSTANTS[param.nameDefault]
+			else:
+				url_query_exprs['"' + param.nameDefault + '"'] = param.name_snake
 		
 		if !url_query_exprs.is_empty():
 			writer.codeline(
-				"url += Hathora.Http.build_query_params("
-			).dict_expr(url_query_exprs).eol().codeline(')')
+				"url += Hathora.Http.build_query_params(", false
+			).dict_expr(url_query_exprs, true, false, false).eol().codeline(')')
 			#endregion
 		
 			#region Headers exprs

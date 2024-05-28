@@ -406,7 +406,7 @@ class ApiEndpoint:
 		var endpoint_json: Dictionary = json.values()[0]
 		
 		#region Security
-		for item: Dictionary in json.get("security", []):
+		for item: Dictionary in endpoint_json.get("security", []):
 			if item.has("playerAuth"):
 				result.security.push_back(Security.User)
 			elif item.has("hathoraDevToken"):
@@ -417,7 +417,7 @@ class ApiEndpoint:
 		#endregion
 		
 		#region Url params
-		for param_json: Dictionary in json.get("parameters", []):
+		for param_json: Dictionary in endpoint_json.get("parameters", []):
 			var current: ApiEndpointUrlParam = ApiEndpointUrlParam.from_json(
 				param_json, all_schemas
 			)
@@ -533,9 +533,17 @@ class ApiEndpointUrlParam:
 		else:
 			result.location = Location.Query
 		
-		result.schema = GD.Swagger.swagger_schema_to_gd(
-			'', all_schemas, json["schema"]
-		)
+		# Long story short, other parts use _schema_from_content_body
+		# it's stupid to check for $ref manually, but whatever...
+		# (I'm not rewriting swagger's schema parser for 3rd time -_-)
+		if json["schema"].has("$ref"):
+			result.schema = GD.Swagger.swagger_schema_to_gd(
+				GD.Swagger._get_ref_name(json["schema"]), all_schemas
+			)
+		else:
+			result.schema = GD.Swagger.swagger_schema_to_gd(
+				'', all_schemas, json["schema"]
+			)
 		
 		return result
 

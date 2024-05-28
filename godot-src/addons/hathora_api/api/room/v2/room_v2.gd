@@ -1,396 +1,488 @@
-# Room V2
+# Room v2
+const RoomWithoutAllocations = preload("res://addons/hathora_api/api/common_types.gd").RoomWithoutAllocations
+const RoomAllocation = preload("res://addons/hathora_api/api/common_types.gd").RoomAllocation
+const ExposedPort = preload("res://addons/hathora_api/api/common_types.gd").ExposedPort
 const ResponseJson = preload("res://addons/hathora_api/core/http.gd").ResponseJson
-const CommonTypes = preload("res://addons/hathora_api/api/common_types.gd")
-const ExposedPort = CommonTypes.ExposedPort
-const RoomAllocation = CommonTypes.RoomAllocation
-const Room = CommonTypes.Room
-
-#region   -- get_connection_info
-class GetConnectionInfoResponse:
-	var additional_exposed_ports: Array[ExposedPort]
-	var exposed_port: ExposedPort
-	var status: String
-	var room_id: String
-	
-	var error
-	var error_message: String
-	
-	func deserialize(data: Dictionary) -> void:
-		assert(data.has("status"), "ASSERT! Missing parameter \"status\" in get_connection_info response")
-		self.status = data["status"]
-		
-		assert(data.has("roomId"), "ASSERT! Missing parameter \"roomId\" in get_connection_info response")
-		self.room_id = data["roomId"]
-		
-		# Properties below exist only when room is ready
-		if self.status == "active":
-			assert(data.has("additionalExposedPorts"), "ASSERT! Missing parameter \"additionalExposedPorts\" in get_connection_info response")
-			for port in data["additionalExposedPorts"]:
-				self.additional_exposed_ports.push_back(
-					ExposedPort.deserialize(port)
-				)
-			
-			assert(data.has("exposedPort"), "ASSERT! Missing parameter \"exposedPort\" in get_connection_info response")
-			self.exposed_port = ExposedPort.deserialize(data["exposedPort"])
 
 
-## It takes some time for server to start, that's why 
-## connection details may not exist at the time of the API call.
-## If [param wait_until_active] is true, function will wait for [member GetConnectionInfoResponse.status] to become "active".
-## ([param retry_delay] - delay between API calls in seconds)
-static func get_connection_info_async(room_id: String, wait_until_active: bool = true, retry_delay: float = 1.5) -> GetConnectionInfoResponse:
-	assert(Hathora.APP_ID != '', "ASSERT! Hathora MUST have a valid APP_ID. See init() function")
-	var result: GetConnectionInfoResponse = GetConnectionInfoResponse.new()
-	
-	while wait_until_active and result.status != "active":
-		# Note: Can't creat a timer without access to SceneTree, so...
-		await Hathora.get_tree().create_timer(retry_delay).timeout
-		result = await __get_connection_info_async(room_id)
-		if result.error != Hathora.Error.Ok:
-			break
-	
-	Hathora.EventBus.on_get_connection_info.emit(result)
-	return result
-
-
-## It takes some time for server to start, that's why 
-## connection details may not exist at the time of the API call.
-## If [param wait_until_active] is true, function will wait for [member GetConnectionInfoResponse.status] to become "active".
-## ([param retry_delay] - delay between API calls in seconds)
-static func get_connection_info(room_id: String, wait_until_active: bool = true, retry_delay: float = 1.5) -> Signal:
-	get_connection_info_async(room_id, wait_until_active, retry_delay)
-	return Hathora.EventBus.on_get_connection_info
-
-
-## TODO: explain. TL;DR - this is an internal function that should never be used
-static func __get_connection_info_async(room_id: String) -> GetConnectionInfoResponse:
-	var result: GetConnectionInfoResponse = GetConnectionInfoResponse.new()
-	var url: String = str(
-		"https://api.hathora.dev/rooms/v2/", 
-		Hathora.APP_ID, "/connectioninfo/", room_id
-	)
-	# Api call
-	var api_response: ResponseJson = await Hathora.Http.get_async(
-		url, ["Content-Type: application/json"]
-	)
-	
-	result.error = api_response.error
-	if api_response.error != Hathora.Error.Ok:
-		result.error_message = Hathora.Error.push_default_or(
-			api_response, {
-				Hathora.Error.ApiDontExists: ["Make sure room with id `" + room_id + "` exists"],
-			}
-		)
-	else:
-		result.deserialize(api_response.data)
-	
-	Hathora.EventBus._internal_get_connection_info.emit(result)
-	return result
-#endregion -- get_connection_info
-
-
-#region   -- create_room
+#region create_room
+## Connection information for the default and additional ports.
 class CreateRoomResponse:
 	var additional_exposed_ports: Array[ExposedPort]
-	var exposed_port: ExposedPort
+	## Connection details for an active process.
+	## (optional)
+	var exposed_port: ExposedPort = null
+	## `exposedPort` will only be available when the `status` of a room is "active".
 	var status: String
+	## Unique identifier to a game session or match. Use the default system generated ID or overwrite it with your own.
+	## Note: error will be returned if `roomId` is not globally unique.
 	var room_id: String
-	
-	var error
+	## System generated unique identifier to a runtime instance of your game server.
+	var process_id: String
+
+	var error: Variant
 	var error_message: String
-	
+
 	func deserialize(data: Dictionary) -> void:
-		assert(data.has("status"), "ASSERT! Missing parameter \"status\" in create_room response")
+		assert(data.has("additionalExposedPorts"), "Missing parameter \"additionalExposedPorts\"")
+		for item: Dictionary in data["additionalExposedPorts"]:
+			self.additional_exposed_ports.push_back(ExposedPort.deserialize(item))
+		
+		if data.has("exposedPort"):
+			self.exposed_port = ExposedPort.deserialize(data["exposedPort"])
+		
+		assert(data.has("status"), "Missing parameter \"status\"")
 		self.status = data["status"]
 		
-		assert(data.has("roomId"), "ASSERT! Missing parameter \"roomId\" in create_room response")
+		assert(data.has("roomId"), "Missing parameter \"roomId\"")
 		self.room_id = data["roomId"]
 		
-		# Properties below exist only when room is ready
-		if self.status == "active":
-			assert(data.has("additionalExposedPorts"), "ASSERT! Missing parameter \"additionalExposedPorts\" in create_room response")
-			for port in data["additionalExposedPorts"]:
-				self.additional_exposed_ports.push_back(
-					ExposedPort.deserialize(port)
-				)
-			
-			assert(data.has("exposedPort"), "ASSERT! Missing parameter \"exposedPort\" in create_room response")
-			self.exposed_port = ExposedPort.deserialize(data["exposedPort"])
+		assert(data.has("processId"), "Missing parameter \"processId\"")
+		self.process_id = data["processId"]
 
 
-static func create_room_async(region: String, room_config: Dictionary = {}) -> CreateRoomResponse:
-	assert(Hathora.APP_ID != '', "ASSERT! Hathora MUST have a valid APP_ID. See init() function")
-	assert(Hathora.assert_is_server(), '')
+static func create_room_async(region: String, room_config: String = '', room_id: String = '') -> CreateRoomResponse:
+	assert(Hathora.APP_ID != '', "Hathora MUST have a valid APP_ID. See init() function")
+	assert(Hathora.assert_is_server(), "unreacheble")
 	assert(Hathora.REGIONS.has(region), "ASSERT! Region `" + region + "` doesn't exists")
 	
 	var result: CreateRoomResponse = CreateRoomResponse.new()
-	var url: String = str(
-		"https://api.hathora.dev/rooms/v2/", Hathora.APP_ID, "/create/"
+	var url: String = "https://api.hathora.dev/rooms/v2/{appId}/create".format({
+			"appId": Hathora.APP_ID,
+		}
+	)
+
+	url += Hathora.Http.build_query_params({
+			"roomId": room_id,
+		}
 	)
 	# Api call
 	var api_response: ResponseJson = await Hathora.Http.post_async(
-		url, ["Content-Type: application/json", Hathora.DEV_AUTH_HEADER], {
+		url,
+		["Content-Type: application/json", Hathora.DEV_AUTH_HEADER],
+		{
 			"roomConfig": room_config,
-			"region": region
+			"region": region,
 		}
 	)
-	
+	# Api errors
 	result.error = api_response.error
-	if api_response.error != Hathora.Error.Ok:
+	if result.error != Hathora.Error.Ok:
+		# WARNING: Human! I need your help - write custom error messages
+		# List of error codes: [400, 401, 402, 403, 404, 500]
 		result.error_message = Hathora.Error.push_default_or(
-			api_response, {
-				Hathora.Error.Forbidden: ["Are you trying to use a DEV_TOKEN from a different app?"]
-			}, {
-				Hathora.Error.MustPayFirst: "Not enough credits to create a room",
-				Hathora.Error.Forbidden: "Not allowed to call `" + api_response.url + '`'
-			}
+			api_response, {}
 		)
 	else:
 		result.deserialize(api_response.data)
 	
-	Hathora.EventBus.on_create_room.emit(result)
+	HathoraEventBus.on_create_room_v2.emit(result)
 	return result
 
 
-static func create_room(region: String, room_config: Dictionary = {}) -> Signal:
-	create_room_async(region, room_config)
-	return Hathora.EventBus.on_create_room
-#endregion -- create_room
+static func create_room(region: String, room_config: String = '', room_id: String = '') -> Signal:
+	create_room_async(region, room_config, room_id)
+	return HathoraEventBus.on_create_room_v2
+#endregion
 
 
-#region   -- get_room_info
+#region get_room_info
+## A room object represents a game session or match.
 class GetRoomInfoResponse:
+	## Metadata on an allocated instance of a room.
 	var current_allocation: RoomAllocation
+	## The allocation status of a room.
+	## `scheduling`: a process is not allocated yet and the room is waiting to be scheduled
+	## `active`: ready to accept connections
+	## `suspended`: room is unallocated from the process but can be rescheduled later with the same `roomId`
+	## `destroyed`: all associated metadata is deleted
 	var status: String
-	var allocations: Array[RoomAllocation] = []
-	var room_config: Dictionary
+	var allocations: Array[RoomAllocation]
+	## Optional configuration parameters for the room. Can be any string including stringified JSON. It is accessible from the room via [`GetRoomInfo()`](https://hathora.dev/api#tag/RoomV2/operation/GetRoomInfo).
+	var room_config: String
+	## Unique identifier to a game session or match. Use the default system generated ID or overwrite it with your own.
+	## Note: error will be returned if `roomId` is not globally unique.
 	var room_id: String
-	
-	var error
+	## System generated unique identifier for an application.
+	var app_id: String
+
+	var error: Variant
 	var error_message: String
-	
+
 	func deserialize(data: Dictionary) -> void:
-		assert(data.has("status"), "ASSERT! Missing parameter \"status\" in get_room_info response")
+		assert(data.has("currentAllocation"), "Missing parameter \"currentAllocation\"")
+		self.current_allocation = RoomAllocation.deserialize(data["currentAllocation"])
+		
+		assert(data.has("status"), "Missing parameter \"status\"")
 		self.status = data["status"]
 		
-		if data.has("currentAllocation"):
-			self.current_allocation = RoomAllocation.deserialize(data["current_allocation"])
+		assert(data.has("allocations"), "Missing parameter \"allocations\"")
+		for item: Dictionary in data["allocations"]:
+			self.allocations.push_back(RoomAllocation.deserialize(item))
 		
-		assert(data.has("allocations"), "ASSERT! Missing parameter \"allocations\" in get_room_info response")
-		for allocation in data["allocations"]:
-			self.allocations.push_back(RoomAllocation.deserialize(allocation))
+		assert(data.has("roomConfig"), "Missing parameter \"roomConfig\"")
+		self.room_config = data["roomConfig"]
 		
-		assert(data.has("roomConfig"), "ASSERT! Missing parameter \"roomConfig\" in get_room_info response")
-		self.room_config = Hathora.Http.json_parse_or(data["roomConfig"], {})
-		
-		assert(data.has("roomId"), "ASSERT! Missing parameter \"roomId\" in get_room_info response")
+		assert(data.has("roomId"), "Missing parameter \"roomId\"")
 		self.room_id = data["roomId"]
+		
+		assert(data.has("appId"), "Missing parameter \"appId\"")
+		self.app_id = data["appId"]
 
 
 static func get_room_info_async(room_id: String) -> GetRoomInfoResponse:
-	assert(Hathora.APP_ID != '', "ASSERT! Hathora MUST have a valid APP_ID. See init() function")
-	assert(Hathora.assert_is_server(), '')
+	assert(Hathora.APP_ID != '', "Hathora MUST have a valid APP_ID. See init() function")
+	assert(Hathora.assert_is_server(), "unreacheble")
 	
 	var result: GetRoomInfoResponse = GetRoomInfoResponse.new()
-	var url: String = str(
-		"https://api.hathora.dev/rooms/v2/", Hathora.APP_ID, "/info/", room_id
+	var url: String = "https://api.hathora.dev/rooms/v2/{appId}/info/{roomId}".format({
+			"appId": Hathora.APP_ID,
+			"roomId": room_id,
+		}
 	)
+
 	# Api call
 	var api_response: ResponseJson = await Hathora.Http.get_async(
-		url, ["Content-Type: application/json", Hathora.DEV_AUTH_HEADER]
+		url,
+		[Hathora.DEV_AUTH_HEADER]
 	)
-	
+	# Api errors
 	result.error = api_response.error
-	if api_response.error != Hathora.Error.Ok:
+	if result.error != Hathora.Error.Ok:
+		# WARNING: Human! I need your help - write custom error messages
+		# List of error codes: [401, 404]
 		result.error_message = Hathora.Error.push_default_or(
-			api_response, {
-				Hathora.Error.ApiDontExists: ["Make sure room with id `" + room_id, "` exists"],
-			}
+			api_response, {}
 		)
 	else:
 		result.deserialize(api_response.data)
 	
-	Hathora.EventBus.on_get_room_info.emit(result)
+	HathoraEventBus.on_get_room_info_v2.emit(result)
 	return result
 
 
 static func get_room_info(room_id: String) -> Signal:
 	get_room_info_async(room_id)
-	return Hathora.EventBus.on_get_room_info
-#endregion -- get_room_info
+	return HathoraEventBus.on_get_room_info_v2
+#endregion
 
 
-#region   -- get_active_rooms_for_process
+#region get_active_rooms_for_process
 class GetActiveRoomsForProcessResponse:
-	var rooms: Array[Room] = []
-	
-	var error
+	var result: Array[RoomWithoutAllocations]
+
+	var error: Variant
 	var error_message: String
-	
-	func deserialize(data) -> void:
-		for room_data in data:
-			self.rooms.push_back(Room.deserialize(room_data)) 
+
+	func deserialize(data: Array[Dictionary]) -> void:
+		for item: Dictionary in data:
+			self.result.push_back(RoomWithoutAllocations.deserialize(item))
 
 
 static func get_active_rooms_for_process_async(process_id: String) -> GetActiveRoomsForProcessResponse:
-	assert(Hathora.APP_ID != '', "ASSERT! Hathora MUST have a valid APP_ID. See init() function")
-	assert(Hathora.assert_is_server(), '')
+	assert(Hathora.APP_ID != '', "Hathora MUST have a valid APP_ID. See init() function")
+	assert(Hathora.assert_is_server(), "unreacheble")
 	
 	var result: GetActiveRoomsForProcessResponse = GetActiveRoomsForProcessResponse.new()
-	var url: String = str(
-		"https://api.hathora.dev/rooms/v2/", Hathora.APP_ID, 
-		"/list/", process_id, "/active"
+	var url: String = "https://api.hathora.dev/rooms/v2/{appId}/list/{processId}/active".format({
+			"appId": Hathora.APP_ID,
+			"processId": process_id,
+		}
 	)
+
 	# Api call
 	var api_response: ResponseJson = await Hathora.Http.get_async(
-		url, ["Content-Type: application/json", Hathora.DEV_AUTH_HEADER]
+		url,
+		[Hathora.DEV_AUTH_HEADER]
 	)
-	
+	# Api errors
 	result.error = api_response.error
-	if api_response.error != Hathora.Error.Ok:
+	if result.error != Hathora.Error.Ok:
+		# WARNING: Human! I need your help - write custom error messages
+		# List of error codes: [401, 404]
 		result.error_message = Hathora.Error.push_default_or(
-			api_response, {
-				Hathora.Error.ApiDontExists: ["Make sure process with id `" + process_id, "` exists"],
-			}
+			api_response, {}
 		)
 	else:
 		result.deserialize(api_response.data)
 	
-	Hathora.EventBus.on_get_active_rooms_for_process.emit(result)
+	HathoraEventBus.on_get_active_rooms_for_process_v2.emit(result)
 	return result
 
 
-static func get_active_rooms_for_process(room_id: String) -> Signal:
-	get_active_rooms_for_process_async(room_id)
-	return Hathora.EventBus.on_get_active_rooms_for_process
-#endregion -- get_active_rooms_for_process
+static func get_active_rooms_for_process(process_id: String) -> Signal:
+	get_active_rooms_for_process_async(process_id)
+	return HathoraEventBus.on_get_active_rooms_for_process_v2
+#endregion
 
 
-#region   -- get_active_rooms_for_process
+#region get_inactive_rooms_for_process
 class GetInactiveRoomsForProcessResponse:
-	var rooms: Array[Room] = []
-	
-	var error
+	var result: Array[RoomWithoutAllocations]
+
+	var error: Variant
 	var error_message: String
-	
-	func deserialize(data) -> void:
-		for room_data in data:
-			self.rooms.push_back(Room.deserialize(room_data)) 
+
+	func deserialize(data: Array[Dictionary]) -> void:
+		for item: Dictionary in data:
+			self.result.push_back(RoomWithoutAllocations.deserialize(item))
 
 
 static func get_inactive_rooms_for_process_async(process_id: String) -> GetInactiveRoomsForProcessResponse:
-	assert(Hathora.APP_ID != '', "ASSERT! Hathora MUST have a valid APP_ID. See init() function")
-	assert(Hathora.assert_is_server(), '')
+	assert(Hathora.APP_ID != '', "Hathora MUST have a valid APP_ID. See init() function")
+	assert(Hathora.assert_is_server(), "unreacheble")
 	
 	var result: GetInactiveRoomsForProcessResponse = GetInactiveRoomsForProcessResponse.new()
-	var url: String = str(
-		"https://api.hathora.dev/rooms/v2/", Hathora.APP_ID, 
-		"/list/", process_id, "/inactive"
+	var url: String = "https://api.hathora.dev/rooms/v2/{appId}/list/{processId}/inactive".format({
+			"appId": Hathora.APP_ID,
+			"processId": process_id,
+		}
 	)
+
 	# Api call
 	var api_response: ResponseJson = await Hathora.Http.get_async(
-		url, ["Content-Type: application/json", Hathora.DEV_AUTH_HEADER]
+		url,
+		[Hathora.DEV_AUTH_HEADER]
 	)
-	
+	# Api errors
 	result.error = api_response.error
-	if api_response.error != Hathora.Error.Ok:
+	if result.error != Hathora.Error.Ok:
+		# WARNING: Human! I need your help - write custom error messages
+		# List of error codes: [401, 404]
 		result.error_message = Hathora.Error.push_default_or(
-			api_response, {
-				Hathora.Error.ApiDontExists: ["Make sure process with id `" + process_id, "` exists"],
-			}
+			api_response, {}
 		)
 	else:
 		result.deserialize(api_response.data)
 	
-	Hathora.EventBus.on_get_inactive_rooms_for_process.emit(result)
+	HathoraEventBus.on_get_inactive_rooms_for_process_v2.emit(result)
 	return result
 
 
 static func get_inactive_rooms_for_process(process_id: String) -> Signal:
 	get_inactive_rooms_for_process_async(process_id)
-	return Hathora.EventBus.on_get_inactive_rooms_for_process
-#endregion -- get_inactive_rooms_for_process
+	return HathoraEventBus.on_get_inactive_rooms_for_process_v2
+#endregion
 
 
-#region   -- destroy_room
+#region destroy_room
+## No content
 class DestroyRoomResponse:
-	var error
+	var result: Dictionary
+
+	var error: Variant
 	var error_message: String
+
+	func deserialize(data: Dictionary) -> void:
+		self.result = data
 
 
 static func destroy_room_async(room_id: String) -> DestroyRoomResponse:
-	assert(Hathora.APP_ID != '', "ASSERT! Hathora MUST have a valid APP_ID. See init() function")
-	assert(Hathora.assert_is_server(), '')
+	assert(Hathora.APP_ID != '', "Hathora MUST have a valid APP_ID. See init() function")
+	assert(Hathora.assert_is_server(), "unreacheble")
 	
 	var result: DestroyRoomResponse = DestroyRoomResponse.new()
-	var url: String = str(
-		"https://api.hathora.dev/rooms/v2/", Hathora.APP_ID, "/destroy/", room_id
+	var url: String = "https://api.hathora.dev/rooms/v2/{appId}/destroy/{roomId}".format({
+			"appId": Hathora.APP_ID,
+			"roomId": room_id,
+		}
 	)
+
 	# Api call
 	var api_response: ResponseJson = await Hathora.Http.post_async(
-		url, ["Content-Type: application/json", Hathora.DEV_AUTH_HEADER], {}
+		url,
+		[Hathora.DEV_AUTH_HEADER],
+		{
+		}
 	)
-	
+	# Api errors
 	result.error = api_response.error
-	if api_response.error != Hathora.Error.Ok:
+	if result.error != Hathora.Error.Ok:
+		# WARNING: Human! I need your help - write custom error messages
+		# List of error codes: [401, 404, 500]
 		result.error_message = Hathora.Error.push_default_or(
-			api_response, {
-				Hathora.Error.ApiDontExists: ["Make sure room with room_id `" + room_id, "` exists"],
-				Hathora.Error.ServerError: ["Maybe you've attempted to destroy the same room multiple times"]
-			}, {
-				Hathora.Error.ServerError: "Hathora servers can't destroy the room for some reason"
-			}
+			api_response, {}
 		)
 	else:
 		result.deserialize(api_response.data)
 	
-	Hathora.EventBus.on_destroy_room.emit(result)
+	HathoraEventBus.on_destroy_room_v2.emit(result)
 	return result
 
 
 static func destroy_room(room_id: String) -> Signal:
 	destroy_room_async(room_id)
-	return Hathora.EventBus.on_destroy_room
-#endregion -- destroy_room
+	return HathoraEventBus.on_destroy_room_v2
+#endregion
 
 
-#region   -- suspend_room
+#region suspend_room
+## No content
 class SuspendRoomResponse:
-	var error
+	var result: Dictionary
+
+	var error: Variant
 	var error_message: String
+
+	func deserialize(data: Dictionary) -> void:
+		self.result = data
 
 
 static func suspend_room_async(room_id: String) -> SuspendRoomResponse:
-	assert(Hathora.APP_ID != '', "ASSERT! Hathora MUST have a valid APP_ID. See init() function")
-	assert(Hathora.assert_is_server(), '')
+	assert(Hathora.APP_ID != '', "Hathora MUST have a valid APP_ID. See init() function")
+	assert(Hathora.assert_is_server(), "unreacheble")
 	
 	var result: SuspendRoomResponse = SuspendRoomResponse.new()
-	var url: String = str(
-		"https://api.hathora.dev/rooms/v2/", Hathora.APP_ID, "/suspend/", room_id
+	var url: String = "https://api.hathora.dev/rooms/v2/{appId}/suspend/{roomId}".format({
+			"appId": Hathora.APP_ID,
+			"roomId": room_id,
+		}
 	)
+
 	# Api call
 	var api_response: ResponseJson = await Hathora.Http.post_async(
-		url, ["Content-Type: application/json", Hathora.DEV_AUTH_HEADER], {}
+		url,
+		[Hathora.DEV_AUTH_HEADER],
+		{
+		}
 	)
-	
+	# Api errors
 	result.error = api_response.error
-	if api_response.error != Hathora.Error.Ok:
+	if result.error != Hathora.Error.Ok:
+		# WARNING: Human! I need your help - write custom error messages
+		# List of error codes: [401, 404, 500]
 		result.error_message = Hathora.Error.push_default_or(
-			api_response, {
-				Hathora.Error.ApiDontExists: ["Make sure room with room_id `" + room_id, "` exists"],
-				Hathora.Error.ServerError: ["Maybe you've attempted to suspend the same room multiple times"]
-			}, {
-				Hathora.Error.ServerError: "Hathora servers can't suspend the room for some reason"
-			}
+			api_response, {}
 		)
 	else:
 		result.deserialize(api_response.data)
 	
-	Hathora.EventBus.on_suspend_room.emit(result)
+	HathoraEventBus.on_suspend_room_v2.emit(result)
 	return result
 
 
 static func suspend_room(room_id: String) -> Signal:
 	suspend_room_async(room_id)
-	return Hathora.EventBus.on_suspend_room
-#endregion -- suspend_room
+	return HathoraEventBus.on_suspend_room_v2
+#endregion
+
+
+#region get_connection_info
+## Connection information for the default and additional ports.
+class GetConnectionInfoResponse:
+	var additional_exposed_ports: Array[ExposedPort]
+	## Connection details for an active process.
+	## (optional)
+	var exposed_port: ExposedPort = null
+	## `exposedPort` will only be available when the `status` of a room is "active".
+	var status: String
+	## Unique identifier to a game session or match. Use the default system generated ID or overwrite it with your own.
+	## Note: error will be returned if `roomId` is not globally unique.
+	var room_id: String
+
+	var error: Variant
+	var error_message: String
+
+	func deserialize(data: Dictionary) -> void:
+		assert(data.has("additionalExposedPorts"), "Missing parameter \"additionalExposedPorts\"")
+		for item: Dictionary in data["additionalExposedPorts"]:
+			self.additional_exposed_ports.push_back(ExposedPort.deserialize(item))
+		
+		if data.has("exposedPort"):
+			self.exposed_port = ExposedPort.deserialize(data["exposedPort"])
+		
+		assert(data.has("status"), "Missing parameter \"status\"")
+		self.status = data["status"]
+		
+		assert(data.has("roomId"), "Missing parameter \"roomId\"")
+		self.room_id = data["roomId"]
+
+
+static func get_connection_info_async(room_id: String) -> GetConnectionInfoResponse:
+	assert(Hathora.APP_ID != '', "Hathora MUST have a valid APP_ID. See init() function")
+	
+	var result: GetConnectionInfoResponse = GetConnectionInfoResponse.new()
+	var url: String = "https://api.hathora.dev/rooms/v2/{appId}/connectioninfo/{roomId}".format({
+			"appId": Hathora.APP_ID,
+			"roomId": room_id,
+		}
+	)
+
+	# Api call
+	var api_response: ResponseJson = await Hathora.Http.get_async(
+		url,
+		[]
+	)
+	# Api errors
+	result.error = api_response.error
+	if result.error != Hathora.Error.Ok:
+		# WARNING: Human! I need your help - write custom error messages
+		# List of error codes: [400, 402, 404, 500]
+		result.error_message = Hathora.Error.push_default_or(
+			api_response, {}
+		)
+	else:
+		result.deserialize(api_response.data)
+	
+	HathoraEventBus.on_get_connection_info_v2.emit(result)
+	return result
+
+
+static func get_connection_info(room_id: String) -> Signal:
+	get_connection_info_async(room_id)
+	return HathoraEventBus.on_get_connection_info_v2
+#endregion
+
+
+#region update_room_config
+## No content
+class UpdateRoomConfigResponse:
+	var result: Dictionary
+
+	var error: Variant
+	var error_message: String
+
+	func deserialize(data: Dictionary) -> void:
+		self.result = data
+
+
+static func update_room_config_async(room_config: String, room_id: String) -> UpdateRoomConfigResponse:
+	assert(Hathora.APP_ID != '', "Hathora MUST have a valid APP_ID. See init() function")
+	assert(Hathora.assert_is_server(), "unreacheble")
+	
+	var result: UpdateRoomConfigResponse = UpdateRoomConfigResponse.new()
+	var url: String = "https://api.hathora.dev/rooms/v2/{appId}/update/{roomId}".format({
+			"appId": Hathora.APP_ID,
+			"roomId": room_id,
+		}
+	)
+
+	# Api call
+	var api_response: ResponseJson = await Hathora.Http.post_async(
+		url,
+		["Content-Type: application/json", Hathora.DEV_AUTH_HEADER],
+		{
+			"roomConfig": room_config,
+		}
+	)
+	# Api errors
+	result.error = api_response.error
+	if result.error != Hathora.Error.Ok:
+		# WARNING: Human! I need your help - write custom error messages
+		# List of error codes: [401, 404, 500]
+		result.error_message = Hathora.Error.push_default_or(
+			api_response, {}
+		)
+	else:
+		result.deserialize(api_response.data)
+	
+	HathoraEventBus.on_update_room_config_v2.emit(result)
+	return result
+
+
+static func update_room_config(room_config: String, room_id: String) -> Signal:
+	update_room_config_async(room_config, room_id)
+	return HathoraEventBus.on_update_room_config_v2
+#endregion
+
+

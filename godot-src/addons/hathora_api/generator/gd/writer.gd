@@ -146,11 +146,11 @@ class BaseContext:
 		
 		return self
 	
-	func dict_expr(expressions: Dictionary, eol_every_item: bool = true, use_offset: bool = false) -> MainWriter:
+	func dict_expr(expressions: Dictionary, eol_every_item: bool = true, use_offset: bool = false, first_eol_tab: bool = true) -> MainWriter:
 		if use_offset:
 			self.code += self._offset()
 		
-		if eol_every_item:
+		if eol_every_item and first_eol_tab:
 			self.code += '\t'
 		self.code += '{'
 		
